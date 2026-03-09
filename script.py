@@ -226,8 +226,8 @@ def main():
     print(linkedin_content)
     # Clean markdown before posting
     linkedin_content = clean_markdown(linkedin_content)
-    print("\nPosting to LinkedIn...")
-    post_to_linkedin(linkedin_content)
+    #print("\nPosting to LinkedIn...")
+    #post_to_linkedin(linkedin_content)
 
 
 if __name__ == "__main__":
