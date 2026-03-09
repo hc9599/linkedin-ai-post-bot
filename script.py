@@ -36,11 +36,15 @@ def generate_linkedin_post(posts):
 {posts_text}
 
 Write a professional LinkedIn post that:
-- Highlights the most interesting trends
-- Is engaging and insightful for .NET/C# developers
-- Ends with relevant hashtags like #CSharp #DotNet #Programming
+- Starts with a witty or funny one-liner related to coding/programming (e.g. a pun, joke, or relatable dev moment)
+- Transitions smoothly into the technical highlights
+- Keeps the technical content accurate and insightful for .NET/C# developers
+- Adds a light, conversational tone throughout — like a smart colleague sharing knowledge, not a corporate announcement
+- Occasionally uses mild humor or a clever observation between points
+- Ends with an engaging question to the audience (e.g. "Which of these are you trying out this week?")
+- Followed by relevant hashtags: #CSharp #DotNet #Programming #SoftwareDevelopment
 - Is between 150-300 words
-- Sounds like a human wrote it
+- Sounds like a real human developer wrote it, not an AI
 """
     
     response = requests.post(
