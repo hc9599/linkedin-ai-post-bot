@@ -1,24 +1,24 @@
-import feedparser
 import requests
 import os
-import json
 
-def fetch_reddit_posts(subreddit="csharp", limit=10):
-    url = f"https://www.reddit.com/r/{subreddit}/top.rss?t=day&limit={limit}"
-    headers = {"User-Agent": "Mozilla/5.0"}
+def fetch_devto_posts(tag="csharp", limit=10):
+    url = f"https://dev.to/api/articles?tag={tag}&top=1&per_page={limit}"
     
-    feed = feedparser.parse(url, request_headers=headers)
+    response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
     
-    if not feed.entries:
-        print("No entries found in feed")
+    if response.status_code != 200:
+        print(f"Dev.to API error: {response.status_code}")
         return []
     
+    articles = response.json()
+    
     posts = []
-    for entry in feed.entries:
+    for article in articles:
         posts.append({
-            "title": entry.title,
-            "link": entry.link,
-            "summary": entry.get("summary", "")[:200]
+            "title": article["title"],
+            "link": article["url"],
+            "summary": article.get("description", "")[:200],
+            "reactions": article.get("positive_reactions_count", 0)
         })
     
     return posts
@@ -29,9 +29,9 @@ def generate_linkedin_post(posts):
     if not GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY not set")
     
-    posts_text = "\n".join([f"- {p['title']}" for p in posts])
+    posts_text = "\n".join([f"- {p['title']}: {p['summary']}" for p in posts])
     
-    prompt = f"""Based on these trending C# topics from Reddit today:
+    prompt = f"""Based on these trending C# and .NET articles today:
 
 {posts_text}
 
@@ -40,7 +40,7 @@ Write a professional LinkedIn post that:
 - Is engaging and insightful for .NET/C# developers
 - Ends with relevant hashtags like #CSharp #DotNet #Programming
 - Is between 150-300 words
-- Does not mention Reddit as the source
+- Sounds like a human wrote it
 """
     
     response = requests.post(
@@ -101,8 +101,13 @@ def post_to_linkedin(content):
     return response.json()
 
 def main():
-    print("Fetching Reddit posts via RSS...")
-    posts = fetch_reddit_posts(subreddit="csharp", limit=10)
+    print("Fetching Dev.to posts...")
+    posts = fetch_devto_posts(tag="csharp", limit=10)
+    
+    if not posts:
+        # Fallback to dotnet tag if csharp returns nothing
+        print("Trying 'dotnet' tag...")
+        posts = fetch_devto_posts(tag="dotnet", limit=10)
     
     if not posts:
         print("No posts fetched, exiting.")
