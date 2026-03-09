@@ -224,10 +224,10 @@ def main():
     linkedin_content = generate_linkedin_post(posts)
     print("\nGenerated post:")
     print(linkedin_content)
-    # Clean markdown before posting
+    print("\nClean markdown before posting..")
     linkedin_content = clean_markdown(linkedin_content)
-    #print("\nPosting to LinkedIn...")
-    #post_to_linkedin(linkedin_content)
+    print("\nPosting to LinkedIn...")
+    post_to_linkedin(linkedin_content)
 
 
 if __name__ == "__main__":
