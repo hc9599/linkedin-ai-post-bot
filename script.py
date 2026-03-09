@@ -2,6 +2,39 @@ import requests
 import os
 import random
 from datetime import datetime
+import re
+
+def clean_markdown(text):
+    # Remove bold **text** or __text__
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'__(.*?)__', r'\1', text)
+    
+    # Remove italic *text* or _text_
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    text = re.sub(r'_(.*?)_', r'\1', text)
+    
+    # Remove headers ### ## #
+    text = re.sub(r'#{1,6}\s+', '', text)
+    
+    # Remove bullet points - or * at start of line
+    text = re.sub(r'^\s*[-*•]\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove numbered lists 1. 2. 3.
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove horizontal rules ---
+    text = re.sub(r'---+', '', text)
+    
+    # Remove backticks for inline code
+    text = re.sub(r'`(.*?)`', r'\1', text)
+    
+    # Remove code blocks
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    
+    # Clean up extra blank lines (more than 2 in a row)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    return text.strip()
 
 def fetch_devto_posts():
     tag_rotation = {
@@ -191,7 +224,8 @@ def main():
     linkedin_content = generate_linkedin_post(posts)
     print("\nGenerated post:")
     print(linkedin_content)
-    
+    # Clean markdown before posting
+    linkedin_content = clean_markdown(linkedin_content)
     print("\nPosting to LinkedIn...")
     post_to_linkedin(linkedin_content)
 
