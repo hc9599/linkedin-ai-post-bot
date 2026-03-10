@@ -1,19 +1,23 @@
 name: Daily LinkedIn Post
-
 on:
   schedule:
-    - cron: '50 4 * * 1-5'  # 9 AM UTC, Monday to Friday
-  workflow_dispatch:         # allows manual trigger too
+    - cron: '30 4 * * 1-5'  # 10:00 AM IST (4:30 AM UTC), Monday to Friday
+  workflow_dispatch:
 
 jobs:
   post:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
       - uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
+      - name: Wait a random delay (up to 3 hours)
+        run: |
+          DELAY=$(( RANDOM % 10800 ))
+          echo "Sleeping for $DELAY seconds (~$(( DELAY / 3600 ))h $(( (DELAY % 3600) / 60 ))m)"
+          sleep $DELAY
 
       - name: Install dependencies
         run: pip install requests feedparser
