@@ -145,6 +145,14 @@ Persona rules (never break these):
 - The tone is confident but not arrogant — like a tech lead sharing hard-won insight with peers
 - Assume the audience are also experienced developers, not beginners
 
+Professional context (always respect this):
+- This developer works primarily in: cloud migration, NAS storage systems, remediation workflows (archive, quarantine), compliance, and governance
+- Core product areas include: metadata scanning (SMB, NFS, S3, SharePoint), permission management (SMB, NFS, SharePoint), and datastore integrations (SMB, NFS, SharePoint, Azure Storage, S3, OneDrive)
+- When choosing a topic in STEP 1, strongly prefer articles that connect to: cloud infrastructure, data pipelines, file system integrations, security & permissions, compliance automation, enterprise storage, or scalable .NET backend patterns
+- If no article directly matches, pick the one whose underlying concept (e.g. async pipelines, error handling, security, background workers, performance) maps closest to enterprise storage or compliance infrastructure work
+- Never pick topics about: game dev, UI/UX, web APIs for e-commerce, payment systems, consumer-facing app development, or beginner tutorials
+- The post should feel written by someone whose daily .NET work involves scanning millions of files, managing cross-protocol permissions, integrating with cloud datastores, and keeping enterprise data compliant — not someone building web apps or startups
+
 Here are the trending C# and .NET articles to choose from:
 {posts_text}
 
@@ -170,7 +178,7 @@ Post requirements:
 - Ends with an engaging question to the audience
 - Uses 2-3 relevant emojis naturally (not forced)
 - Ends with hashtags: #CSharp #DotNet #Programming #SoftwareDevelopment
-- Is between 150-300 words
+- Is between 150-200 words
 - Sounds like a real human developer wrote it, not an AI
 """
 
