@@ -1,6 +1,7 @@
 import requests
 import os
 import random
+import time
 from datetime import datetime
 import re
 
@@ -12,9 +13,9 @@ def clean_markdown(text):
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'__(.*?)__', r'\1', text)
     
-    # Remove italic *text* or _text_
+    # Remove italic *text* or _text_ (FIX 2: word-boundary guard to protect hashtags)
     text = re.sub(r'\*(.*?)\*', r'\1', text)
-    text = re.sub(r'_(.*?)_', r'\1', text)
+    text = re.sub(r'(?<!\w)_(.*?)_(?!\w)', r'\1', text)
     
     # Remove headers ### ## #
     text = re.sub(r'#{1,6}\s+', '', text)
@@ -133,8 +134,18 @@ def generate_linkedin_post(posts):
     ]
     chosen_style = random.choice(styles)
     
-    prompt = f"""Today is {today}. You are given a list of trending C# and .NET articles as inspiration:
+    # FIX 1: Added clear label before articles so the model knows what it's reading
+    # FIX 3: Expanded banned phrases list to prevent beginner/AI-sounding language
+    prompt = f"""Today is {today}. You are ghostwriting a LinkedIn post for a senior C#/.NET developer with 5+ years of production experience.
 
+Persona rules (never break these):
+- Write as someone who has SEEN things — battle-tested opinions, not beginner discoveries
+- Never use: "I just learned", "I recently discovered", "building my first", "I was surprised to find", "it's all about", "straightforward", "seamless", "dive into", "delve into", "I stumbled upon", "robust", "game-changer", "I recently dove into", "the key to", "the importance of"
+- Instead use: "something I keep coming back to", "a pattern I've seen break teams", "after years of this...", "we've all been there", "production taught me"
+- The tone is confident but not arrogant — like a tech lead sharing hard-won insight with peers
+- Assume the audience are also experienced developers, not beginners
+
+Here are the trending C# and .NET articles to choose from:
 {posts_text}
 
 STEP 1 — Choose ONE topic:
@@ -161,25 +172,31 @@ Post requirements:
 - Ends with hashtags: #CSharp #DotNet #Programming #SoftwareDevelopment
 - Is between 150-300 words
 - Sounds like a real human developer wrote it, not an AI
-"""    
-    response = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        },
-        json={
-            "model": "llama-3.3-70b-versatile",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.9,
-            "top_p": 0.9
-        }
-    )
-    
-    if response.status_code != 200:
-        raise Exception(f"Groq API error: {response.status_code} - {response.text}")
-    
-    return response.json()["choices"][0]["message"]["content"]
+"""
+
+    # FIX 4: Retry logic — retries up to 3 times on Groq API failure
+    for attempt in range(3):
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.9,
+                "top_p": 0.9
+            }
+        )
+
+        if response.status_code == 200:
+            return response.json()["choices"][0]["message"]["content"]
+
+        print(f"Groq attempt {attempt + 1} failed: {response.status_code} - {response.text}")
+        time.sleep(5)
+
+    raise Exception(f"Groq API failed after 3 attempts: {response.text}")
 
 
 def post_to_linkedin(content):
@@ -238,8 +255,10 @@ def main():
     linkedin_content = generate_linkedin_post(posts)
     print("\nGenerated post:")
     print(linkedin_content)
-    print("\nClean markdown before posting..")
+    print("\nCleaning markdown before posting...")
     linkedin_content = clean_markdown(linkedin_content)
+    print("\nCleaned post:")
+    print(linkedin_content)
     print("\nPosting to LinkedIn...")
     post_to_linkedin(linkedin_content)
 
