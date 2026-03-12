@@ -5,6 +5,9 @@ from datetime import datetime
 import re
 
 def clean_markdown(text):
+    # Strip the "Chosen topic:" debug line from the model's output
+    text = re.sub(r'^Chosen topic:.*\n?', '', text, flags=re.IGNORECASE)
+    
     # Remove bold **text** or __text__
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'__(.*?)__', r'\1', text)
@@ -130,24 +133,35 @@ def generate_linkedin_post(posts):
     ]
     chosen_style = random.choice(styles)
     
-    prompt = f"""Today is {today}. Based on these trending C# and .NET articles:
+    prompt = f"""Today is {today}. You are given a list of trending C# and .NET articles as inspiration:
 
 {posts_text}
 
-Write a professional LinkedIn post that:
+STEP 1 — Choose ONE topic:
+- Read all the articles above
+- Pick exactly ONE that is most relatable to everyday C#/.NET developers
+- Prefer topics about: async/await, performance, debugging, architecture, tooling, security, or common pain points
+- Avoid overly niche topics (e.g. game dev mechanics, obscure libraries) unless the concept maps broadly to .NET dev work
+- Output your choice on the very first line as: Chosen topic: [article title]
+
+STEP 2 — Write the LinkedIn post using ONLY that chosen topic:
+- Every sentence must connect to that single topic — do not drift
+- Do NOT mention, reference, or allude to any other article from the list
+- The post should feel like it was inspired by one article, not a digest of many
+- If you catch yourself switching to a different technical subject mid-post, stop and rewrite
+
+Post requirements:
 - {chosen_style}
-- Transitions smoothly into the technical highlights from the articles
+- Transitions smoothly into insight from the chosen topic
 - Keeps technical content accurate and insightful for .NET/C# developers
 - Has a light conversational tone — like a smart colleague sharing knowledge
-- Adds mild humor or a clever observation between points
+- Adds mild humor or a clever observation
 - Ends with an engaging question to the audience
 - Uses 2-3 relevant emojis naturally (not forced)
 - Ends with hashtags: #CSharp #DotNet #Programming #SoftwareDevelopment
 - Is between 150-300 words
 - Sounds like a real human developer wrote it, not an AI
-- IMPORTANT: Make it feel different from a generic AI post
-"""
-    
+"""    
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={
