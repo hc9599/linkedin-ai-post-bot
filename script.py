@@ -13,26 +13,24 @@ def clean_markdown(text):
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'__(.*?)__', r'\1', text)
     
-    # Remove italic *text* or _text_ (FIX 2: word-boundary guard to protect hashtags)
+    # Remove italic *text* or _text_ (Word-boundary guard protects hashtags/emails)
     text = re.sub(r'\*(.*?)\*', r'\1', text)
     text = re.sub(r'(?<!\w)_(.*?)_(?!\w)', r'\1', text)
     
-    # Remove headers ### ## #
-    text = re.sub(r'#{1,6}\s+', '', text)
+    # FIX: Only remove headers (###) if they are at the START of a line.
+    # The `^` anchor and `MULTILINE` flag prevent it from stripping the '#' in 'C# '
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
     
-    # Remove bullet points - or * at start of line
-    text = re.sub(r'^\s*[-*•]\s+', '', text, flags=re.MULTILINE)
-    
-    # Remove numbered lists 1. 2. 3.
-    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    # Note: Numbered list (1. 2.) and bullet point (- or *) strippers have been REMOVED.
+    # This allows the AI's structural formatting to survive to LinkedIn.
     
     # Remove horizontal rules ---
-    text = re.sub(r'---+', '', text)
+    text = re.sub(r'^---+$', '', text, flags=re.MULTILINE)
     
     # Remove backticks for inline code
     text = re.sub(r'`(.*?)`', r'\1', text)
     
-    # Remove code blocks
+    # Remove code blocks completely (LinkedIn doesn't format them well anyway)
     text = re.sub(r'```[\s\S]*?```', '', text)
     
     # Clean up extra blank lines (more than 2 in a row)
@@ -125,64 +123,68 @@ def generate_linkedin_post(posts):
         for p in posts
     ])
     
-    styles = [
-        "Start with a relatable developer struggle or funny observation",
-        "Start with a surprising fact or controversial opinion about .NET/C#",
-        "Start with a short story or scenario a developer would recognize",
-        "Start with a bold claim that grabs attention",
-        "Start with a question that makes developers stop and think",
+    # 1. Rotate persona phrases (Pick 1-2 randomly)
+    persona_phrases = [
+        "Something I keep coming back to...",
+        "A pattern I've seen break teams...",
+        "After years of wrestling with this in production...",
+        "Production has a funny way of teaching you...",
+        "I used to overcomplicate this, but...",
+        "The unglamorous truth about enterprise .NET dev...",
+        "If I see one more PR doing this...",
+        "Hard truth for backend devs:"
     ]
-    chosen_style = random.choice(styles)
+    selected_phrases = random.sample(persona_phrases, k=random.randint(1, 2))
+    phrases_instruction = "\n".join([f'- "{p}"' for p in selected_phrases])
+
+    # 2. Vary post structure
+    structures = [
+        "A hot take with absolutely NO question or call-to-action at the end. Just state your peace and end it abruptly.",
+        "A mini-story about a messy code review, a PR comment, or a debugging session.",
+        "A direct observation ending with a highly specific, deeply technical question (NOT a generic one).",
+        "A mild, relatable technical complaint about how things usually go wrong in legacy code."
+    ]
+    chosen_structure = random.choice(structures)
+
+    # 3. Add a format randomizer
+    formats = [
+        "Short, punchy lines separated by line breaks (but don't make it cringey).",
+        "One flowing, conversational paragraph. Very casual.",
+        "A brief intro followed by exactly 2 or 3 short numbered observations."
+    ]
+    chosen_format = random.choice(formats)
     
-    # FIX 1: Added clear label before articles so the model knows what it's reading
-    # FIX 3: Expanded banned phrases list to prevent beginner/AI-sounding language
     prompt = f"""Today is {today}. You are ghostwriting a LinkedIn post for a senior C#/.NET developer with 5+ years of production experience.
 
-Persona rules (never break these):
-- Write as someone who has SEEN things — battle-tested opinions, not beginner discoveries
-- Never use: "I just learned", "I recently discovered", "building my first", "I was surprised to find", "it's all about", "straightforward", "seamless", "dive into", "delve into", "I stumbled upon", "robust", "game-changer", "I recently dove into", "the key to", "the importance of"
-- Instead use: "something I keep coming back to", "a pattern I've seen break teams", "after years of this...", "we've all been there", "production taught me"
-- The tone is confident but not arrogant — like a tech lead sharing hard-won insight with peers
-- Assume the audience are also experienced developers, not beginners
+CRITICAL RULES FOR SOUNDING HUMAN (Never break these):
+- NEVER USE THESE BANNED PHRASES: "We've all been there", "In today's fast-paced", "Crucial", "Game-changer", "Delve", "Robust", "Seamless", "Picture this", "It's amazing how", "Navigating the complexities", "Let's dive in", "A friendly reminder".
+- DO NOT use the word "hashtag" before the # symbol.
+- Keep the word count flexible: anywhere from 100 to 220 words. Shorter is often much better and more natural.
+- Sound like a tired but experienced tech lead chatting on Slack, not a marketer.
 
 Professional context (always respect this):
-- This developer works primarily in: cloud migration, NAS storage systems, remediation workflows (archive, quarantine), compliance, and governance
-- Core product areas include: metadata scanning (SMB, NFS, S3, SharePoint), permission management (SMB, NFS, SharePoint), and datastore integrations (SMB, NFS, SharePoint, Azure Storage, S3, OneDrive)
-- When choosing a topic in STEP 1, strongly prefer articles that connect to: cloud infrastructure, data pipelines, file system integrations, security & permissions, compliance automation, enterprise storage, or scalable .NET backend patterns
-- If no article directly matches, pick the one whose underlying concept (e.g. async pipelines, error handling, security, background workers, performance) maps closest to enterprise storage or compliance infrastructure work
-- Never pick topics about: game dev, UI/UX, web APIs for e-commerce, payment systems, consumer-facing app development, or beginner tutorials
-- The post should feel written by someone whose daily .NET work involves scanning millions of files, managing cross-protocol permissions, integrating with cloud datastores, and keeping enterprise data compliant — not someone building web apps or startups
+- This developer works primarily in: cloud migration, NAS storage systems, remediation workflows, compliance, and governance.
+- Core product areas: metadata scanning, permission management, and datastore integrations (SMB, NFS, SharePoint, Azure Storage, S3).
+- Avoid frontend, game dev, UI/UX, or beginner tutorials.
 
 Here are the trending C# and .NET articles to choose from:
 {posts_text}
 
 STEP 1 — Choose ONE topic:
-- Read all the articles above
-- Pick exactly ONE that is most relatable to everyday C#/.NET developers
-- Prefer topics about: async/await, performance, debugging, architecture, tooling, security, or common pain points
-- Avoid overly niche topics (e.g. game dev mechanics, obscure libraries) unless the concept maps broadly to .NET dev work
+- Pick exactly ONE article that maps closest to enterprise storage, data pipelines, security, or scalable .NET backend patterns.
 - Output your choice on the very first line as: Chosen topic: [article title]
 
-STEP 2 — Write the LinkedIn post using ONLY that chosen topic:
-- Every sentence must connect to that single topic — do not drift
-- Do NOT mention, reference, or allude to any other article from the list
-- The post should feel like it was inspired by one article, not a digest of many
-- If you catch yourself switching to a different technical subject mid-post, stop and rewrite
+STEP 2 — Write the LinkedIn post using ONLY the core concept of that chosen topic:
+- Structure the post like this: {chosen_structure}
+- Format the text like this: {chosen_format}
+- Naturally work in at least one of these exact phrases (but do not force it if it sounds awkward):
+{phrases_instruction}
 
 Post requirements:
-- {chosen_style}
-- Transitions smoothly into insight from the chosen topic
-- Keeps technical content accurate and insightful for .NET/C# developers
-- Has a light conversational tone — like a smart colleague sharing knowledge
-- Adds mild humor or a clever observation
-- Ends with an engaging question to the audience
-- Uses 2-3 relevant emojis naturally (not forced)
-- Ends with hashtags: #CSharp #DotNet #Programming #SoftwareDevelopment
-- Is between 150-200 words
-- Sounds like a real human developer wrote it, not an AI
+- Use 1 or 2 emojis maximum.
+- End with 3-4 standard hashtags (e.g., #CSharp #DotNet). Just use the # symbol.
 """
 
-    # FIX 4: Retry logic — retries up to 3 times on Groq API failure
     for attempt in range(3):
         response = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
@@ -193,7 +195,7 @@ Post requirements:
             json={
                 "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.9,
+                "temperature": 0.85, # Slightly lowered for more consistent tone constraints
                 "top_p": 0.9
             }
         )
