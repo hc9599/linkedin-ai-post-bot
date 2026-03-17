@@ -13,25 +13,46 @@ def clean_markdown(text):
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'__(.*?)__', r'\1', text)
     
-    # Remove italic *text* or _text_ (Word-boundary guard protects hashtags/emails)
+    # Remove italic *text* or _text_ (word-boundary guard to protect hashtags)
     text = re.sub(r'\*(.*?)\*', r'\1', text)
     text = re.sub(r'(?<!\w)_(.*?)_(?!\w)', r'\1', text)
     
-    # FIX: Only remove headers (###) if they are at the START of a line.
-    # The `^` anchor and `MULTILINE` flag prevent it from stripping the '#' in 'C# '
+    # Remove headers ### ## # — only when # appears at the start of a line
     text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
     
-    # Note: Numbered list (1. 2.) and bullet point (- or *) strippers have been REMOVED.
-    # This allows the AI's structural formatting to survive to LinkedIn.
+    # Remove bullet points - or * at start of line
+    text = re.sub(r'^\s*[-*•]\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove numbered lists 1. 2. 3.
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
     
     # Remove horizontal rules ---
-    text = re.sub(r'^---+$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'---+', '', text)
     
     # Remove backticks for inline code
     text = re.sub(r'`(.*?)`', r'\1', text)
     
-    # Remove code blocks completely (LinkedIn doesn't format them well anyway)
+    # Remove code blocks
     text = re.sub(r'```[\s\S]*?```', '', text)
+    
+    # Remove emojis and unicode symbols — but preserve plain ASCII (including # in C#)
+    # Targets: emoticons, symbols, pictographs, transport, flags, supplemental symbols
+    text = re.sub(
+        r'[\U0001F600-\U0001F64F'  # emoticons
+        r'\U0001F300-\U0001F5FF'   # symbols & pictographs
+        r'\U0001F680-\U0001F6FF'   # transport & map
+        r'\U0001F700-\U0001F77F'   # alchemical symbols
+        r'\U0001F780-\U0001F7FF'   # geometric shapes extended
+        r'\U0001F800-\U0001F8FF'   # supplemental arrows
+        r'\U0001F900-\U0001F9FF'   # supplemental symbols & pictographs
+        r'\U0001FA00-\U0001FA6F'   # chess symbols
+        r'\U0001FA70-\U0001FAFF'   # symbols and pictographs extended-A
+        r'\U00002702-\U000027B0'   # dingbats
+        r'\U000024C2-\U0001F251'   # enclosed characters
+        r']+',
+        '',
+        text
+    )
     
     # Clean up extra blank lines (more than 2 in a row)
     text = re.sub(r'\n{3,}', '\n\n', text)
@@ -72,7 +93,7 @@ def fetch_devto_posts():
         articles = response.json()
         print(f"Fallback articles fetched: {len(articles)}")
 
-    # Fallback to dotnet tag if csharp returns nothing
+    # Fallback to dotnet tag if nothing found
     if not articles:
         print("No articles found, trying dotnet tag...")
         url = f"https://dev.to/api/articles?tag=dotnet&page=1&per_page=20"
@@ -80,12 +101,10 @@ def fetch_devto_posts():
         articles = response.json()
         print(f"Dotnet fallback articles fetched: {len(articles)}")
 
-    # Print reactions count to help debug
     print("Reactions count for fetched articles:")
     for a in articles:
-        print(f"  - [{a.get('positive_reactions_count', 0)} 👍] {a['title']}")
+        print(f"  - [{a.get('positive_reactions_count', 0)} reactions] {a['title']}")
 
-    # Filter with reactions >= 0 so nothing gets excluded
     filtered = [
         a for a in articles
         if a.get("positive_reactions_count", 0) >= 0
@@ -119,70 +138,114 @@ def generate_linkedin_post(posts):
     today = datetime.now().strftime("%A, %B %d")
     
     posts_text = "\n".join([
-        f"- {p['title']} (👍 {p['reactions']} reactions): {p['summary']}"
+        f"- {p['title']} ({p['reactions']} reactions): {p['summary']}"
         for p in posts
     ])
-    
-    # 1. Rotate persona phrases (Pick 1-2 randomly)
-    persona_phrases = [
-        "Something I keep coming back to...",
-        "A pattern I've seen break teams...",
-        "After years of wrestling with this in production...",
-        "Production has a funny way of teaching you...",
-        "I used to overcomplicate this, but...",
-        "The unglamorous truth about enterprise .NET dev...",
-        "If I see one more PR doing this...",
-        "Hard truth for backend devs:"
-    ]
-    selected_phrases = random.sample(persona_phrases, k=random.randint(1, 2))
-    phrases_instruction = "\n".join([f'- "{p}"' for p in selected_phrases])
 
-    # 2. Vary post structure
-    structures = [
-        "A hot take with absolutely NO question or call-to-action at the end. Just state your peace and end it abruptly.",
-        "A mini-story about a messy code review, a PR comment, or a debugging session.",
-        "A direct observation ending with a highly specific, deeply technical question (NOT a generic one).",
-        "A mild, relatable technical complaint about how things usually go wrong in legacy code."
+    # ---------------------------------------------------------------
+    # OPENERS: rotate so structure never repeats two days in a row
+    # ---------------------------------------------------------------
+    openers = [
+        "Open with a one-sentence hot take that a senior .NET dev would either strongly agree or disagree with. No hedging.",
+        "Open with a very short story — one or two sentences — about a specific moment in a production system that went sideways. Make it feel real, not hypothetical.",
+        "Open with a direct observation about something most .NET developers do out of habit that you think deserves a second look.",
+        "Open with a question that a junior dev would never think to ask but a senior dev loses sleep over.",
+        "Open with a blunt, slightly frustrated observation about something in the .NET ecosystem that wastes peoples time.",
+        "Open mid-thought, as if continuing a conversation already in progress. No setup, no intro — just the insight.",
     ]
-    chosen_structure = random.choice(structures)
 
-    # 3. Add a format randomizer
+    # ---------------------------------------------------------------
+    # ENDINGS: rotate so the post does not always close with a question
+    # ---------------------------------------------------------------
+    endings = [
+        "End with a casual question to the audience — one line, conversational, not formal.",
+        "End with a short punchy statement that gives your opinion and leaves no question. No call to action.",
+        "End with a challenge: tell the reader one concrete thing to go and check in their own codebase.",
+        "End by zooming out — one sentence connecting the technical point to something broader about how teams or systems fail.",
+        "End with a dry, slightly self-aware observation about how long it took you to learn this.",
+    ]
+
+    # ---------------------------------------------------------------
+    # FORMATS: vary post shape so it does not always read as paragraphs
+    # ---------------------------------------------------------------
     formats = [
-        "Short, punchy lines separated by line breaks (but don't make it cringey).",
-        "One flowing, conversational paragraph. Very casual.",
-        "A brief intro followed by exactly 2 or 3 short numbered observations."
+        "Write it as one flowing block of text, no line breaks between thoughts.",
+        "Write it as short punchy lines, each on its own line. Like how real people write on LinkedIn — not essays.",
+        "Write two short paragraphs. First one sets up the problem, second one is your take.",
+        "Write it as a single paragraph that builds to one sharp final sentence.",
     ]
+
+    chosen_opener = random.choice(openers)
+    chosen_ending = random.choice(endings)
     chosen_format = random.choice(formats)
-    
-    prompt = f"""Today is {today}. You are ghostwriting a LinkedIn post for a senior C#/.NET developer with 5+ years of production experience.
 
-CRITICAL RULES FOR SOUNDING HUMAN (Never break these):
-- NEVER USE THESE BANNED PHRASES: "We've all been there", "In today's fast-paced", "Crucial", "Game-changer", "Delve", "Robust", "Seamless", "Picture this", "It's amazing how", "Navigating the complexities", "Let's dive in", "A friendly reminder".
-- DO NOT use the word "hashtag" before the # symbol.
-- Keep the word count flexible: anywhere from 100 to 220 words. Shorter is often much better and more natural.
-- Sound like a tired but experienced tech lead chatting on Slack, not a marketer.
+    # ---------------------------------------------------------------
+    # BANNED PHRASES: kill repeated AI patterns
+    # ---------------------------------------------------------------
+    banned_phrases = [
+        "production taught me",
+        "something I keep coming back to",
+        "a pattern I've seen break teams",
+        "we've all been there",
+        "after years of",
+        "hard-won",
+        "battle-tested",
+        "I just learned",
+        "I recently discovered",
+        "building my first",
+        "I was surprised to find",
+        "it's all about",
+        "straightforward",
+        "seamless",
+        "dive into",
+        "delve into",
+        "I stumbled upon",
+        "robust",
+        "game-changer",
+        "the key to",
+        "the importance of",
+        "in today's world",
+        "in the world of",
+        "navigating",
+        "ever-evolving",
+        "tech landscape",
+        "as developers",
+        "as a developer",
+        "let that sink in",
+        "food for thought",
+        "it's worth noting",
+        "at the end of the day",
+        "take it to the next level",
+    ]
+    banned_str = "\n".join(f"- {p}" for p in banned_phrases)
 
-Professional context (always respect this):
-- This developer works primarily in: cloud migration, NAS storage systems, remediation workflows, compliance, and governance.
-- Core product areas: metadata scanning, permission management, and datastore integrations (SMB, NFS, SharePoint, Azure Storage, S3).
-- Avoid frontend, game dev, UI/UX, or beginner tutorials.
+    prompt = f"""Today is {today}. You are ghostwriting a LinkedIn post for a senior C#/.NET developer.
 
-Here are the trending C# and .NET articles to choose from:
+This person works on cloud migration, NAS storage systems, remediation workflows (archive, quarantine), compliance, and governance. Their daily work involves scanning millions of files, managing cross-protocol permissions (SMB, NFS, SharePoint, S3, OneDrive), and keeping enterprise data compliant. Write from that world — not from the world of web APIs, startups, or consumer apps.
+
+Choose ONE article from the list below that connects best to: cloud infrastructure, data pipelines, file system integrations, security and permissions, compliance automation, enterprise storage, or scalable .NET backend patterns. If nothing is a direct match, pick the one whose underlying concept — async pipelines, error handling, security, background workers, performance — maps closest to that work.
+
+Here are the articles:
 {posts_text}
 
-STEP 1 — Choose ONE topic:
-- Pick exactly ONE article that maps closest to enterprise storage, data pipelines, security, or scalable .NET backend patterns.
-- Output your choice on the very first line as: Chosen topic: [article title]
+STEP 1 — Choose one topic:
+Output your choice on the very first line as: Chosen topic: [article title]
 
-STEP 2 — Write the LinkedIn post using ONLY the core concept of that chosen topic:
-- Structure the post like this: {chosen_structure}
-- Format the text like this: {chosen_format}
-- Naturally work in at least one of these exact phrases (but do not force it if it sounds awkward):
-{phrases_instruction}
+STEP 2 — Write the LinkedIn post about ONLY that topic. Do not reference any other article from the list.
 
-Post requirements:
-- Use 1 or 2 emojis maximum.
-- End with 3-4 standard hashtags (e.g., #CSharp #DotNet). Just use the # symbol.
+Post rules:
+- {chosen_opener}
+- {chosen_ending}
+- {chosen_format}
+- Write like a real person typing, not like someone drafting a press release
+- Confident and direct — peer to peer, not teacher to student
+- No emojis. Not a single one. No smiley faces, no symbols, nothing.
+- No markdown formatting
+- Between 100 and 180 words — shorter is fine if the point lands clearly
+- End with: #CSharp #DotNet #Programming #SoftwareDevelopment
+
+Banned phrases — do not use any of these, even loosely paraphrased:
+{banned_str}
 """
 
     for attempt in range(3):
@@ -195,8 +258,10 @@ Post requirements:
             json={
                 "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.85, # Slightly lowered for more consistent tone constraints
-                "top_p": 0.9
+                "temperature": 0.95,
+                "top_p": 0.92,
+                "frequency_penalty": 0.5,
+                "presence_penalty": 0.4,
             }
         )
 
@@ -259,7 +324,7 @@ def main():
     
     print(f"\nSelected {len(posts)} posts:")
     for p in posts:
-        print(f"  - [{p['reactions']} 👍] {p['title']}")
+        print(f"  - [{p['reactions']} reactions] {p['title']}")
     
     print("\nGenerating LinkedIn post with Groq...")
     linkedin_content = generate_linkedin_post(posts)
