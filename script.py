@@ -175,9 +175,20 @@ def generate_linkedin_post(posts):
         "Write it as a single paragraph that builds to one sharp final sentence.",
     ]
 
+    # ---------------------------------------------------------------
+    # WORD COUNTS: rotate so post length varies across days
+    # ---------------------------------------------------------------
+    word_counts = [
+        "between 80 and 100 words — keep it tight, every sentence must earn its place",
+        "between 100 and 130 words — concise but with room for one concrete example",
+        "between 130 and 160 words — enough space to build an argument, not a word more",
+        "between 160 and 180 words — use the length only if the insight genuinely needs it",
+    ]
+
     chosen_opener = random.choice(openers)
     chosen_ending = random.choice(endings)
     chosen_format = random.choice(formats)
+    chosen_word_count = random.choice(word_counts)
 
     # ---------------------------------------------------------------
     # BANNED PHRASES: kill repeated AI patterns
@@ -241,7 +252,7 @@ Post rules:
 - Confident and direct — peer to peer, not teacher to student
 - No emojis. Not a single one. No smiley faces, no symbols, nothing.
 - No markdown formatting
-- Between 100 and 180 words — shorter is fine if the point lands clearly
+- {chosen_word_count}
 - End with: #CSharp #DotNet #Programming #SoftwareDevelopment
 
 Banned phrases — do not use any of these, even loosely paraphrased:
