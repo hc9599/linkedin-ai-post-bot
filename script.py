@@ -59,74 +59,150 @@ def clean_markdown(text):
     
     return text.strip()
 
-def fetch_devto_posts():
-    tag_rotation = {
-        0: ["csharp", "dotnet"],        # Monday
-        1: ["dotnet", "azure"],          # Tuesday
-        2: ["csharp", "webdev"],         # Wednesday
-        3: ["dotnet", "architecture"],   # Thursday
-        4: ["csharp", "career"],         # Friday
+def fetch_reddit_posts():
+    """
+    Pulls hot posts from r/csharp and r/dotnet using Reddit's free JSON API.
+    No API key required for read-only access.
+    Rotates between 'hot' and 'top' (week) to vary content across days.
+    """
+    subreddits = ["csharp", "dotnet"]
+    # Alternate between hot and top-of-week based on day
+    sort = "top" if datetime.now().weekday() % 2 == 0 else "hot"
+    time_filter = "?t=week" if sort == "top" else ""
+
+    headers = {
+        "User-Agent": "linkedin-post-bot/1.0 (automated content generator)"
     }
-    
-    today = datetime.now().weekday()
-    tags = tag_rotation.get(today, ["csharp", "dotnet"])
-    tag = random.choice(tags)
-    page = random.randint(1, 3)
-    
-    print(f"Fetching Dev.to posts with tag: #{tag}, page: {page}")
-    
-    url = f"https://dev.to/api/articles?tag={tag}&page={page}&per_page=20"
-    response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-    
-    if response.status_code != 200:
-        print(f"Dev.to API error: {response.status_code}")
-        return []
-    
-    articles = response.json()
-    print(f"Total articles fetched: {len(articles)}")
-    
-    # Fallback to page 1 if current page is empty
-    if not articles:
-        print("Page empty, falling back to page 1...")
-        url = f"https://dev.to/api/articles?tag={tag}&page=1&per_page=20"
-        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-        articles = response.json()
-        print(f"Fallback articles fetched: {len(articles)}")
 
-    # Fallback to dotnet tag if nothing found
-    if not articles:
-        print("No articles found, trying dotnet tag...")
-        url = f"https://dev.to/api/articles?tag=dotnet&page=1&per_page=20"
-        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
-        articles = response.json()
-        print(f"Dotnet fallback articles fetched: {len(articles)}")
-
-    print("Reactions count for fetched articles:")
-    for a in articles:
-        print(f"  - [{a.get('positive_reactions_count', 0)} reactions] {a['title']}")
-
-    filtered = [
-        a for a in articles
-        if a.get("positive_reactions_count", 0) >= 0
-        and len(a.get("title", "")) > 20
-    ]
-    
-    print(f"Filtered articles: {len(filtered)}")
-    
-    random.shuffle(filtered)
-    selected = filtered[:5]
-    
     posts = []
-    for article in selected:
-        posts.append({
-            "title": article["title"],
-            "link": article["url"],
-            "summary": article.get("description", "")[:200],
-            "reactions": article.get("positive_reactions_count", 0),
-            "tag": tag
-        })
-    
+
+    for subreddit in subreddits:
+        url = f"https://www.reddit.com/r/{subreddit}/{sort}.json{time_filter}&limit=25"
+        print(f"Fetching Reddit r/{subreddit} ({sort})...")
+
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                print(f"Reddit r/{subreddit} error: {response.status_code}")
+                continue
+
+            data = response.json()
+            children = data.get("data", {}).get("children", [])
+            print(f"  r/{subreddit}: {len(children)} posts fetched")
+
+            for child in children:
+                post = child.get("data", {})
+
+                # Skip stickied mod posts, image/video posts, and very short titles
+                if post.get("stickied"):
+                    continue
+                if post.get("is_video") or post.get("post_hint") == "image":
+                    continue
+                title = post.get("title", "")
+                if len(title) < 20:
+                    continue
+
+                # Use selftext as summary if available, else fall back to URL
+                summary = post.get("selftext", "")[:200].strip()
+                if not summary:
+                    summary = post.get("url", "")
+
+                posts.append({
+                    "title": title,
+                    "link": f"https://reddit.com{post.get('permalink', '')}",
+                    "summary": summary,
+                    "reactions": post.get("score", 0),
+                    "source": f"r/{subreddit}"
+                })
+
+        except Exception as e:
+            print(f"Reddit fetch error for r/{subreddit}: {e}")
+            continue
+
+    print(f"Total Reddit posts collected: {len(posts)}")
     return posts
+
+
+def fetch_dotnet_blog_posts():
+    """
+    Pulls latest posts from the official Microsoft .NET Dev Blog RSS feed.
+    Uses feedparser to parse the RSS. Falls back gracefully if unavailable.
+    """
+    try:
+        import feedparser
+    except ImportError:
+        print("feedparser not installed — skipping .NET blog. Run: pip install feedparser")
+        return []
+
+    feed_url = "https://devblogs.microsoft.com/dotnet/feed/"
+    print(f"Fetching .NET Dev Blog RSS...")
+
+    try:
+        feed = feedparser.parse(feed_url)
+        entries = feed.entries[:20]
+        print(f"  .NET blog: {len(entries)} entries fetched")
+    except Exception as e:
+        print(f".NET blog fetch error: {e}")
+        return []
+
+    posts = []
+    for entry in entries:
+        title = entry.get("title", "")
+        if len(title) < 20:
+            continue
+
+        # Strip HTML tags from summary
+        summary = re.sub(r"<[^>]+>", "", entry.get("summary", ""))[:200].strip()
+
+        posts.append({
+            "title": title,
+            "link": entry.get("link", ""),
+            "summary": summary,
+            "reactions": 0,  # RSS has no reaction count — treated equally in selection
+            "source": ".NET Dev Blog"
+        })
+
+    print(f"Total .NET blog posts collected: {len(posts)}")
+    return posts
+
+
+def fetch_posts():
+    """
+    Combines Reddit and .NET Dev Blog sources.
+    Picks a balanced mix: 3 from Reddit (community signal) + 2 from .NET blog (authority).
+    Falls back cleanly if either source is unavailable.
+    """
+    reddit_posts = fetch_reddit_posts()
+    blog_posts = fetch_dotnet_blog_posts()
+
+    # Sort Reddit posts by score so we pick from the most upvoted
+    reddit_posts.sort(key=lambda x: x["reactions"], reverse=True)
+
+    # Shuffle blog posts since they have no score signal
+    random.shuffle(blog_posts)
+
+    # Take top posts from each source
+    selected_reddit = reddit_posts[:10]
+    selected_blog = blog_posts[:10]
+
+    # Shuffle each bucket individually then interleave
+    random.shuffle(selected_reddit)
+    random.shuffle(selected_blog)
+
+    combined = selected_reddit[:3] + selected_blog[:2]
+
+    # If one source failed entirely, fill from the other
+    if not combined:
+        combined = (reddit_posts + blog_posts)[:5]
+
+    random.shuffle(combined)
+    final = combined[:5]
+
+    print(f"\nFinal selected posts ({len(final)}):")
+    for p in final:
+        print(f"  - [{p['reactions']} upvotes | {p['source']}] {p['title']}")
+
+    return final
 
 
 def generate_linkedin_post(posts):
@@ -138,7 +214,7 @@ def generate_linkedin_post(posts):
     today = datetime.now().strftime("%A, %B %d")
     
     posts_text = "\n".join([
-        f"- {p['title']} ({p['reactions']} reactions): {p['summary']}"
+        f"- [{p['source']}] {p['title']} ({p['reactions']} upvotes): {p['summary']}"
         for p in posts
     ])
 
@@ -326,16 +402,12 @@ def post_to_linkedin(content):
 
 
 def main():
-    print("Fetching Dev.to posts...")
-    posts = fetch_devto_posts()
+    print("Fetching posts from Reddit and .NET Dev Blog...")
+    posts = fetch_posts()
     
     if not posts:
         print("No posts fetched, exiting.")
         return
-    
-    print(f"\nSelected {len(posts)} posts:")
-    for p in posts:
-        print(f"  - [{p['reactions']} reactions] {p['title']}")
     
     print("\nGenerating LinkedIn post with Groq...")
     linkedin_content = generate_linkedin_post(posts)
