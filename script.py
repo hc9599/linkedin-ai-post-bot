@@ -61,29 +61,47 @@ def clean_markdown(text):
 
 def fetch_reddit_posts():
     """
-    Pulls hot posts from r/csharp and r/dotnet using Reddit's free JSON API.
-    No API key required for read-only access.
+    Pulls hot/top posts from r/csharp and r/dotnet using Reddit's JSON API.
+    Uses old.reddit.com with realistic browser headers to avoid 403 blocks.
     Rotates between 'hot' and 'top' (week) to vary content across days.
     """
     subreddits = ["csharp", "dotnet"]
-    # Alternate between hot and top-of-week based on day
     sort = "top" if datetime.now().weekday() % 2 == 0 else "hot"
-    time_filter = "?t=week" if sort == "top" else ""
+    time_filter = "week" if sort == "top" else ""
 
-    headers = {
-        "User-Agent": "linkedin-post-bot/1.0 (automated content generator)"
-    }
+    # Realistic browser headers — Reddit blocks self-identifying bot agents
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+    })
 
     posts = []
 
     for subreddit in subreddits:
-        url = f"https://www.reddit.com/r/{subreddit}/{sort}.json{time_filter}&limit=25"
+        # old.reddit.com is less aggressively rate-limited than www.reddit.com
+        if sort == "top":
+            url = f"https://old.reddit.com/r/{subreddit}/top.json?t={time_filter}&limit=25"
+        else:
+            url = f"https://old.reddit.com/r/{subreddit}/hot.json?limit=25"
+
         print(f"Fetching Reddit r/{subreddit} ({sort})...")
 
         try:
-            response = requests.get(url, headers=headers, timeout=10)
+            response = session.get(url, timeout=15)
+            if response.status_code == 403:
+                print(f"  r/{subreddit}: 403 blocked — trying www.reddit.com fallback...")
+                # Fallback to www endpoint
+                fallback_url = url.replace("old.reddit.com", "www.reddit.com")
+                time.sleep(2)
+                response = session.get(fallback_url, timeout=15)
+
             if response.status_code != 200:
-                print(f"Reddit r/{subreddit} error: {response.status_code}")
+                print(f"  r/{subreddit}: error {response.status_code} — skipping")
                 continue
 
             data = response.json()
@@ -117,8 +135,11 @@ def fetch_reddit_posts():
                 })
 
         except Exception as e:
-            print(f"Reddit fetch error for r/{subreddit}: {e}")
+            print(f"  Reddit fetch error for r/{subreddit}: {e}")
             continue
+
+        # Small delay between subreddit requests to avoid rate limiting
+        time.sleep(1.5)
 
     print(f"Total Reddit posts collected: {len(posts)}")
     return posts
@@ -408,23 +429,49 @@ def post_to_linkedin(content):
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate and post a LinkedIn update.")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Generate and print the post without publishing to LinkedIn."
+    )
+    args = parser.parse_args()
+
+    # Also respect a DRY_RUN env var so CI/CD pipelines can control this
+    # without changing the command — set DRY_RUN=true in your workflow env
+    dry_run = args.dry_run or os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
+
+    if dry_run:
+        print("*** DRY RUN MODE — post will NOT be published to LinkedIn ***\n")
+
     print("Fetching posts from Reddit and .NET Dev Blog...")
     posts = fetch_posts()
-    
+
     if not posts:
         print("No posts fetched, exiting.")
         return
-    
+
     print("\nGenerating LinkedIn post with Groq...")
     linkedin_content = generate_linkedin_post(posts)
     print("\nGenerated post:")
     print(linkedin_content)
     print("\nCleaning markdown before posting...")
     linkedin_content = clean_markdown(linkedin_content)
-    print("\nCleaned post:")
+
+    print("\n" + "=" * 60)
+    print("FINAL POST:")
+    print("=" * 60)
     print(linkedin_content)
-    print("\nPosting to LinkedIn...")
-    post_to_linkedin(linkedin_content)
+    print("=" * 60)
+    print(f"Word count: {len(linkedin_content.split())}")
+
+    if dry_run:
+        print("\n*** DRY RUN — skipping LinkedIn publish ***")
+    else:
+        print("\nPosting to LinkedIn...")
+        post_to_linkedin(linkedin_content)
 
 
 if __name__ == "__main__":
