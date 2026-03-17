@@ -103,7 +103,8 @@ def fetch_reddit_posts():
                     continue
 
                 # Use selftext as summary if available, else fall back to URL
-                summary = post.get("selftext", "")[:200].strip()
+                # 500 chars gives the model enough to write something specific
+                summary = post.get("selftext", "")[:500].strip()
                 if not summary:
                     summary = post.get("url", "")
 
@@ -151,8 +152,11 @@ def fetch_dotnet_blog_posts():
         if len(title) < 20:
             continue
 
-        # Strip HTML tags from summary
-        summary = re.sub(r"<[^>]+>", "", entry.get("summary", ""))[:200].strip()
+        # Strip HTML tags from summary, collapse whitespace, take 500 chars
+        # More content here means the model can write something specific rather than generic
+        raw_summary = re.sub(r"<[^>]+>", "", entry.get("summary", ""))
+        raw_summary = re.sub(r"\s+", " ", raw_summary).strip()
+        summary = raw_summary[:500]
 
         posts.append({
             "title": title,
@@ -213,8 +217,8 @@ def generate_linkedin_post(posts):
     
     today = datetime.now().strftime("%A, %B %d")
     
-    posts_text = "\n".join([
-        f"- [{p['source']}] {p['title']} ({p['reactions']} upvotes): {p['summary']}"
+    posts_text = "\n\n".join([
+        f"[{p['source']}] {p['title']} ({p['reactions']} upvotes)\n{p['summary']}"
         for p in posts
     ])
 
@@ -311,6 +315,8 @@ def generate_linkedin_post(posts):
 This person works on cloud migration, NAS storage systems, remediation workflows (archive, quarantine), compliance, and governance. Their daily work involves scanning millions of files, managing cross-protocol permissions (SMB, NFS, SharePoint, S3, OneDrive), and keeping enterprise data compliant. Write from that world — not from the world of web APIs, startups, or consumer apps.
 
 Choose ONE article from the list below that connects best to: cloud infrastructure, data pipelines, file system integrations, security and permissions, compliance automation, enterprise storage, or scalable .NET backend patterns. If nothing is a direct match, pick the one whose underlying concept — async pipelines, error handling, security, background workers, performance — maps closest to that work.
+
+Each article includes a summary. Read it. The post must reference at least one specific detail, behaviour, or finding from that summary — not just the title. A post that could have been written without reading the summary will be rejected.
 
 Here are the articles:
 {posts_text}
