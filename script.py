@@ -497,6 +497,9 @@ Post structure and style:
   BAD: "This feature is worth paying attention to." (vague, non-committal)
   GOOD: "Most teams apply these updates without reading the changelog — and that is exactly how silent regressions slip in."
   GOOD: "The new collection expression syntax looks minor, but it quietly removes one of the most common sources of unnecessary allocations in everyday C# code."
+- No repetition. Each sentence must add something new. Do not restate the same point in different words.
+  BAD: saying "unified interface" five times, or ending three sentences in a row with the same conclusion.
+  If you catch yourself making the same point twice, cut the second instance entirely.
 - No invented anecdotes. No "I recall when..." or fabricated scenarios.
 - No emojis. No smiley faces. No symbols.
 - No markdown formatting.
@@ -740,14 +743,15 @@ def main():
         help="Generate and print the post without publishing to LinkedIn."
     )
     parser.add_argument(
-        "--no-image",
+        "--image",
         action="store_true",
-        help="Skip image generation and post text only."
+        help="Generate and attach an image to the post (off by default)."
     )
     args = parser.parse_args()
 
     dry_run = args.dry_run or os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
-    skip_image = args.no_image or os.environ.get("NO_IMAGE", "").lower() in ("1", "true", "yes")
+    # Image is OFF by default — must be explicitly enabled with --image or IMAGE=true
+    generate_img = args.image or os.environ.get("IMAGE", "").lower() in ("1", "true", "yes")
 
     if dry_run:
         print("*** DRY RUN MODE — post will NOT be published to LinkedIn ***\n")
@@ -774,9 +778,9 @@ def main():
     print("=" * 60)
     print(f"Word count: {len(linkedin_content.split())}")
 
-    # Image generation
+    # Image generation — off by default, enable with --image flag
     image_bytes = None
-    if not skip_image:
+    if generate_img:
         print("\nGenerating image prompt...")
         image_prompt = generate_image_prompt(linkedin_content)
         if image_prompt:
@@ -785,7 +789,7 @@ def main():
         else:
             print("Could not generate image prompt — skipping image.")
     else:
-        print("\nImage generation skipped (--no-image).")
+        print("\nImage generation disabled (use --image to enable).")
 
     if dry_run:
         print("\n*** DRY RUN — skipping LinkedIn publish ***")
