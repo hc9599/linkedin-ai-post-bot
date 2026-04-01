@@ -518,14 +518,13 @@ Banned phrases — do not use any of these:
                 "Content-Type": "application/json"
             },
             json={
-                    "model": "qwen/qwen3-32b",   # Better voice fidelity than llama-3.3-70b
-                    "messages": messages,
-                    "temperature": temperature,
-                    "top_p": 0.92,
-                    "frequency_penalty": 0.5,
-                    "presence_penalty": 0.4,
-                    "max_tokens": max_tokens,
-                }
+                "model": "qwen/qwen3-32b",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.95,
+                "top_p": 0.92,
+                "frequency_penalty": 0.5,
+                "presence_penalty": 0.4,
+            }
         )
 
         if response.status_code == 200:
