@@ -518,7 +518,7 @@ Banned phrases — do not use any of these:
                 "Content-Type": "application/json"
             },
             json={
-                "model": "qwen/qwen3-32b",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.95,
                 "top_p": 0.92,
