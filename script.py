@@ -2,8 +2,8 @@ import requests
 import os
 import random
 import time
-import re
 from datetime import datetime
+import re
 
 
 # ---------------------------------------------------------------
@@ -153,8 +153,6 @@ BANNED_PHRASES = [
 
 # ---------------------------------------------------------------
 # BANNED OPENERS — structural-level enforcement
-# These patterns produce the bland, generic first sentences
-# that make the posts feel like AI summaries, not human takes.
 # ---------------------------------------------------------------
 BANNED_OPENERS = [
     "Most teams...",
@@ -265,10 +263,75 @@ WORD_COUNTS = [
 ]
 
 
-def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 600) -> str | None:
+# ---------------------------------------------------------------
+# UTILITY
+# ---------------------------------------------------------------
+
+def clean_markdown(text):
+    # Remove bold **text** or __text__
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    text = re.sub(r'__(.*?)__', r'\1', text)
+
+    # Remove italic *text* or _text_ (word-boundary guard to protect hashtags)
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    text = re.sub(r'(?<!\w)_(.*?)_(?!\w)', r'\1', text)
+
+    # Remove headers ### ## # — only at start of line AND followed by a space
+    text = re.sub(r'^(#{1,6})\s+', '', text, flags=re.MULTILINE)
+
+    # Remove bullet points - or * at start of line
+    text = re.sub(r'^\s*[-*•]\s+', '', text, flags=re.MULTILINE)
+
+    # Remove numbered lists 1. 2. 3.
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+
+    # Remove horizontal rules ---
+    text = re.sub(r'---+', '', text)
+
+    # Remove backticks for inline code
+    text = re.sub(r'`(.*?)`', r'\1', text)
+
+    # Remove code blocks
+    text = re.sub(r'```[\s\S]*?```', '', text)
+
+    # Remove emojis and unicode symbols — preserve plain ASCII (including # in C#)
+    text = re.sub(
+        r'[\U0001F600-\U0001F64F'
+        r'\U0001F300-\U0001F5FF'
+        r'\U0001F680-\U0001F6FF'
+        r'\U0001F700-\U0001F77F'
+        r'\U0001F780-\U0001F7FF'
+        r'\U0001F800-\U0001F8FF'
+        r'\U0001F900-\U0001F9FF'
+        r'\U0001FA00-\U0001FA6F'
+        r'\U0001FA70-\U0001FAFF'
+        r'\U00002702-\U000027B0'
+        r'\U000024C2-\U0001F251'
+        r']+',
+        '',
+        text
+    )
+
+    # Strip "hashtag#" that some models write before # signs
+    text = re.sub(r'\bhashtag#', '#', text, flags=re.IGNORECASE)
+
+    # Clean up extra blank lines (more than 2 in a row)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    return text.strip()
+
+
+def strip_topic_line(text: str) -> str:
     """
-    Single reusable Groq call. Returns the text content or None on failure.
-    Retries up to 3 times with exponential backoff.
+    Removes the 'TOPIC: ...' debug line the model outputs at the top.
+    Runs after the critique pass (critique prompt references it), before clean_markdown.
+    """
+    return re.sub(r'^TOPIC:.*\n?', '', text, flags=re.IGNORECASE).strip()
+
+
+def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 700) -> str | None:
+    """
+    Shared Groq API call with retry logic. Returns text content or None on failure.
     """
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
     if not GROQ_API_KEY:
@@ -283,7 +346,7 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 600)
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "qwen/qwen3-32b",       # Better voice fidelity than llama-3.3-70b
+                    "model": "qwen/qwen3-32b",   # Better voice fidelity than llama-3.3-70b
                     "messages": messages,
                     "temperature": temperature,
                     "top_p": 0.92,
@@ -297,6 +360,7 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 600)
                 return response.json()["choices"][0]["message"]["content"].strip()
 
             print(f"Groq attempt {attempt + 1} failed: {response.status_code} — {response.text}")
+
         except Exception as e:
             print(f"Groq attempt {attempt + 1} exception: {e}")
 
@@ -305,10 +369,193 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 600)
     return None
 
 
+# ---------------------------------------------------------------
+# DATA SOURCES
+# ---------------------------------------------------------------
+
+def fetch_reddit_posts():
+    """
+    Pulls hot/top posts from r/csharp and r/dotnet using Reddit's official OAuth API.
+    Requires REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET environment variables.
+    """
+    client_id = os.environ.get("REDDIT_CLIENT_ID")
+    client_secret = os.environ.get("REDDIT_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        print("REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET not set — skipping Reddit.")
+        return []
+
+    print("Authenticating with Reddit OAuth...")
+    try:
+        token_response = requests.post(
+            "https://www.reddit.com/api/v1/access_token",
+            auth=(client_id, client_secret),
+            data={"grant_type": "client_credentials"},
+            headers={"User-Agent": "linkedin-dotnet-bot/2.0 by /u/your_reddit_username"},
+            timeout=10
+        )
+        if token_response.status_code != 200:
+            print(f"Reddit OAuth failed: {token_response.status_code} — {token_response.text}")
+            return []
+
+        access_token = token_response.json().get("access_token")
+        if not access_token:
+            print("Reddit OAuth: no access token in response")
+            return []
+
+        print("Reddit OAuth: authenticated successfully")
+
+    except Exception as e:
+        print(f"Reddit OAuth error: {e}")
+        return []
+
+    session = requests.Session()
+    session.headers.update({
+        "Authorization": f"bearer {access_token}",
+        "User-Agent": "linkedin-dotnet-bot/2.0 by /u/your_reddit_username",
+    })
+
+    subreddits = ["csharp", "dotnet"]
+    sort = "top" if datetime.now().weekday() % 2 == 0 else "hot"
+    time_filter = "week" if sort == "top" else ""
+
+    posts = []
+
+    for subreddit in subreddits:
+        if sort == "top":
+            url = f"https://oauth.reddit.com/r/{subreddit}/top?t={time_filter}&limit=25"
+        else:
+            url = f"https://oauth.reddit.com/r/{subreddit}/hot?limit=25"
+
+        print(f"Fetching Reddit r/{subreddit} ({sort})...")
+
+        try:
+            response = session.get(url, timeout=15)
+
+            if response.status_code != 200:
+                print(f"  r/{subreddit}: error {response.status_code} — skipping")
+                continue
+
+            data = response.json()
+            children = data.get("data", {}).get("children", [])
+            print(f"  r/{subreddit}: {len(children)} posts fetched")
+
+            for child in children:
+                post = child.get("data", {})
+
+                if post.get("stickied"):
+                    continue
+                if post.get("is_video") or post.get("post_hint") == "image":
+                    continue
+                title = post.get("title", "")
+                if len(title) < 20:
+                    continue
+
+                summary = post.get("selftext", "")[:500].strip()
+                if not summary:
+                    summary = post.get("url", "")
+
+                posts.append({
+                    "title": title,
+                    "link": f"https://reddit.com{post.get('permalink', '')}",
+                    "summary": summary,
+                    "reactions": post.get("score", 0),
+                    "source": f"r/{subreddit}"
+                })
+
+        except Exception as e:
+            print(f"  Reddit fetch error for r/{subreddit}: {e}")
+            continue
+
+        time.sleep(1)
+
+    print(f"Total Reddit posts collected: {len(posts)}")
+    return posts
+
+
+def fetch_dotnet_blog_posts():
+    """
+    Pulls latest posts from the official Microsoft .NET Dev Blog RSS feed.
+    """
+    try:
+        import feedparser
+    except ImportError:
+        print("feedparser not installed — skipping .NET blog. Run: pip install feedparser")
+        return []
+
+    feed_url = "https://devblogs.microsoft.com/dotnet/feed/"
+    print("Fetching .NET Dev Blog RSS...")
+
+    try:
+        feed = feedparser.parse(feed_url)
+        entries = feed.entries[:20]
+        print(f"  .NET blog: {len(entries)} entries fetched")
+    except Exception as e:
+        print(f".NET blog fetch error: {e}")
+        return []
+
+    posts = []
+    for entry in entries:
+        title = entry.get("title", "")
+        if len(title) < 20:
+            continue
+
+        raw_summary = re.sub(r"<[^>]+>", "", entry.get("summary", ""))
+        raw_summary = re.sub(r"\s+", " ", raw_summary).strip()
+        summary = raw_summary[:500]
+
+        posts.append({
+            "title": title,
+            "link": entry.get("link", ""),
+            "summary": summary,
+            "reactions": 0,
+            "source": ".NET Dev Blog"
+        })
+
+    print(f"Total .NET blog posts collected: {len(posts)}")
+    return posts
+
+
+def fetch_posts():
+    """
+    Combines Reddit and .NET Dev Blog sources.
+    Picks a balanced mix: 3 from Reddit + 2 from .NET blog.
+    Falls back cleanly if either source is unavailable.
+    """
+    reddit_posts = fetch_reddit_posts()
+    blog_posts = fetch_dotnet_blog_posts()
+
+    reddit_posts.sort(key=lambda x: x["reactions"], reverse=True)
+    random.shuffle(blog_posts)
+
+    selected_reddit = reddit_posts[:10]
+    selected_blog = blog_posts[:10]
+
+    random.shuffle(selected_reddit)
+    random.shuffle(selected_blog)
+
+    combined = selected_reddit[:3] + selected_blog[:2]
+
+    if not combined:
+        combined = (reddit_posts + blog_posts)[:5]
+
+    random.shuffle(combined)
+    final = combined[:5]
+
+    print(f"\nFinal selected posts ({len(final)}):")
+    for p in final:
+        print(f"  - [{p['reactions']} upvotes | {p['source']}] {p['title']}")
+
+    return final
+
+
+# ---------------------------------------------------------------
+# POST GENERATION — two-pass: draft + self-critique
+# ---------------------------------------------------------------
+
 def generate_linkedin_post(posts: list) -> str:
     """
-    First-pass post generation.
-    Picks one article, applies the daily angle, and writes a draft post.
+    First pass: picks one article, applies the daily angle, writes a draft.
     """
     today = datetime.now().strftime("%A, %B %d")
     weekday = datetime.now().weekday()
@@ -321,7 +568,7 @@ def generate_linkedin_post(posts: list) -> str:
     angle = TOPIC_ANGLES[weekday]
 
     # Pick one variant from each category BEFORE building the prompt.
-    # Presenting a menu of options invites the model to blend them into mush.
+    # Presenting a menu invites the model to blend them into mush.
     chosen_opener = random.choice(OPENERS)
     chosen_ending = random.choice(ENDINGS)
     chosen_format = random.choice(FORMATS)
@@ -423,9 +670,8 @@ BANNED PHRASES — do not use any of these:
 
 def critique_and_rewrite(draft: str) -> str:
     """
-    Second-pass self-critique and rewrite.
-    Checks the draft against the five most common failure modes and rewrites
-    only what needs fixing. Lower temperature for more disciplined output.
+    Second pass: checks the draft against five failure modes and rewrites only what fails.
+    Runs at low temperature for disciplined editing rather than creative rewriting.
     """
     critique_prompt = f"""You are editing a LinkedIn post draft for a senior C#/.NET developer. \
 Your job is to check it against the five failure modes below and rewrite only what fails. \
@@ -478,9 +724,274 @@ Preserve the hashtag line at the bottom exactly as written.
     return result
 
 
-def strip_topic_line(text: str) -> str:
+# ---------------------------------------------------------------
+# IMAGE GENERATION
+# ---------------------------------------------------------------
+
+def generate_image_prompt(post_content: str) -> str | None:
     """
-    Removes the 'TOPIC: ...' debug line the model outputs at the top.
-    Kept separate from clean_markdown so it runs after critique pass.
+    Asks Groq to generate a clean image prompt based on the post content.
     """
-    return re.sub(r'^TOPIC:.*\n?', '', text, flags=re.IGNORECASE).strip()
+    system = (
+        "You generate image prompts for LinkedIn tech posts. "
+        "Output only the image prompt — no explanation, no preamble, no quotes. "
+        "Style: clean flat illustration, dark background, subtle code or tech motif. "
+        "No people, no faces, no text in the image. "
+        "Keep it abstract and professional — suitable for a developer's LinkedIn post."
+    )
+
+    user = (
+        f"Based on this LinkedIn post, write a short image generation prompt (max 30 words):\n\n"
+        f"{post_content}"
+    )
+
+    result = _call_groq(
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0.7,
+        max_tokens=80,
+    )
+
+    return result
+
+
+def generate_image(image_prompt: str) -> bytes | None:
+    """
+    Generates an image via Pollinations AI (free, no API key needed).
+    Returns image bytes or None on failure.
+    """
+    import urllib.parse
+
+    encoded = urllib.parse.quote(image_prompt)
+    url = (
+        f"https://image.pollinations.ai/prompt/{encoded}"
+        f"?width=1200&height=627&nologo=true&enhance=true&model=flux"
+    )
+
+    print(f"Generating image with prompt: {image_prompt}")
+    print("Waiting for image generation (this can take 15-30s)...")
+
+    try:
+        response = requests.get(url, timeout=60)
+        if response.status_code == 200 and response.headers.get("content-type", "").startswith("image"):
+            print(f"Image generated — {len(response.content) // 1024}KB")
+            return response.content
+        else:
+            print(f"Image generation failed: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Image generation error: {e}")
+        return None
+
+
+# ---------------------------------------------------------------
+# LINKEDIN PUBLISHING
+# ---------------------------------------------------------------
+
+def upload_image_to_linkedin(image_bytes: bytes, token: str, person_id: str) -> str:
+    """
+    Uploads image bytes to LinkedIn using the Assets API.
+    Returns the asset URN needed to attach the image to a post.
+    """
+    headers_base = {
+        "Authorization": f"Bearer {token}",
+        "X-Restli-Protocol-Version": "2.0.0",
+    }
+
+    register_url = "https://api.linkedin.com/v2/assets?action=registerUpload"
+    register_payload = {
+        "registerUploadRequest": {
+            "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
+            "owner": f"urn:li:person:{person_id}",
+            "serviceRelationships": [
+                {
+                    "relationshipType": "OWNER",
+                    "identifier": "urn:li:userGeneratedContent"
+                }
+            ]
+        }
+    }
+
+    reg_response = requests.post(
+        register_url,
+        headers={**headers_base, "Content-Type": "application/json"},
+        json=register_payload
+    )
+
+    if reg_response.status_code != 200:
+        raise Exception(f"LinkedIn image register failed: {reg_response.status_code} - {reg_response.text}")
+
+    reg_data = reg_response.json()
+    upload_url = (
+        reg_data["value"]["uploadMechanism"]
+        ["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]
+        ["uploadUrl"]
+    )
+    asset = reg_data["value"]["asset"]
+
+    print(f"LinkedIn upload URL obtained. Asset: {asset}")
+
+    upload_response = requests.put(
+        upload_url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "image/png",
+        },
+        data=image_bytes
+    )
+
+    if upload_response.status_code not in [200, 201]:
+        raise Exception(f"LinkedIn image upload failed: {upload_response.status_code} - {upload_response.text}")
+
+    print("Image uploaded to LinkedIn successfully.")
+    return asset
+
+
+def post_to_linkedin(content: str, image_bytes: bytes | None = None):
+    LINKEDIN_TOKEN = os.environ.get("LINKEDIN_TOKEN")
+    LINKEDIN_PERSON_ID = os.environ.get("LINKEDIN_PERSON_ID")
+
+    if not LINKEDIN_TOKEN or not LINKEDIN_PERSON_ID:
+        raise ValueError("LinkedIn credentials not set")
+
+    url = "https://api.linkedin.com/v2/ugcPosts"
+
+    headers = {
+        "Authorization": f"Bearer {LINKEDIN_TOKEN}",
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+
+    if image_bytes:
+        try:
+            asset = upload_image_to_linkedin(image_bytes, LINKEDIN_TOKEN, LINKEDIN_PERSON_ID)
+            payload = {
+                "author": f"urn:li:person:{LINKEDIN_PERSON_ID}",
+                "lifecycleState": "PUBLISHED",
+                "specificContent": {
+                    "com.linkedin.ugc.ShareContent": {
+                        "shareCommentary": {"text": content},
+                        "shareMediaCategory": "IMAGE",
+                        "media": [
+                            {
+                                "status": "READY",
+                                "media": asset,
+                            }
+                        ]
+                    }
+                },
+                "visibility": {
+                    "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+                }
+            }
+            print("Posting with image...")
+        except Exception as e:
+            print(f"Image upload failed ({e}) — falling back to text-only post")
+            image_bytes = None
+
+    if not image_bytes:
+        payload = {
+            "author": f"urn:li:person:{LINKEDIN_PERSON_ID}",
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {"text": content},
+                    "shareMediaCategory": "NONE"
+                }
+            },
+            "visibility": {
+                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+            }
+        }
+
+    response = requests.post(url, headers=headers, json=payload)
+
+    if response.status_code not in [200, 201]:
+        raise Exception(f"LinkedIn API error: {response.status_code} - {response.text}")
+
+    print("Successfully posted to LinkedIn!")
+    return response.json()
+
+
+# ---------------------------------------------------------------
+# ENTRY POINT
+# ---------------------------------------------------------------
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate and post a LinkedIn update.")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Generate and print the post without publishing to LinkedIn."
+    )
+    parser.add_argument(
+        "--image",
+        action="store_true",
+        help="Generate and attach an image to the post (off by default)."
+    )
+    args = parser.parse_args()
+
+    dry_run = args.dry_run or os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes")
+    generate_img = args.image or os.environ.get("IMAGE", "").lower() in ("1", "true", "yes")
+
+    if dry_run:
+        print("*** DRY RUN MODE — post will NOT be published to LinkedIn ***\n")
+
+    print("Fetching posts from Reddit and .NET Dev Blog...")
+    posts = fetch_posts()
+
+    if not posts:
+        print("No posts fetched, exiting.")
+        return
+
+    print("\nGenerating LinkedIn post (first pass)...")
+    linkedin_content = generate_linkedin_post(posts)
+    print("\nDraft (raw):")
+    print(linkedin_content)
+
+    print("\nRunning self-critique pass...")
+    linkedin_content = critique_and_rewrite(linkedin_content)
+    print("\nAfter critique (raw):")
+    print(linkedin_content)
+
+    print("\nCleaning...")
+    linkedin_content = strip_topic_line(linkedin_content)
+    linkedin_content = clean_markdown(linkedin_content)
+
+    print("\n" + "=" * 60)
+    print("FINAL POST:")
+    print("=" * 60)
+    print(linkedin_content)
+    print("=" * 60)
+    print(f"Word count: {len(linkedin_content.split())}")
+
+    image_bytes = None
+    if generate_img:
+        print("\nGenerating image prompt...")
+        image_prompt = generate_image_prompt(linkedin_content)
+        if image_prompt:
+            print(f"Image prompt: {image_prompt}")
+            image_bytes = generate_image(image_prompt)
+        else:
+            print("Could not generate image prompt — skipping image.")
+    else:
+        print("\nImage generation disabled (use --image to enable).")
+
+    if dry_run:
+        print("\n*** DRY RUN — skipping LinkedIn publish ***")
+        if image_bytes:
+            img_path = f"dry_run_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            with open(img_path, "wb") as f:
+                f.write(image_bytes)
+            print(f"Image saved locally for preview: {img_path}")
+    else:
+        print("\nPosting to LinkedIn...")
+        post_to_linkedin(linkedin_content, image_bytes)
+
+
+if __name__ == "__main__":
+    main()
