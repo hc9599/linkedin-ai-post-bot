@@ -403,21 +403,30 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 800)
     for model in models:
         for attempt in range(3):
             try:
+                payload = {
+                    "model": model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "top_p": 0.92,
+                    "frequency_penalty": 0.5,
+                    "presence_penalty": 0.4,
+                    "max_tokens": max_tokens,
+                }
+
+                # Qwen3 supports reasoning_effort on Groq — set to "none" to
+                # suppress think blocks entirely and use the full token budget
+                # for actual output. Llama doesn't support this, so only apply
+                # it when we're on the Qwen3 model.
+                if "qwen" in model:
+                    payload["reasoning_effort"] = "none"
+
                 response = requests.post(
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={
                         "Authorization": f"Bearer {GROQ_API_KEY}",
                         "Content-Type": "application/json",
                     },
-                    json={
-                        "model": model,
-                        "messages": messages,
-                        "temperature": temperature,
-                        "top_p": 0.92,
-                        "frequency_penalty": 0.5,
-                        "presence_penalty": 0.4,
-                        "max_tokens": max_tokens,
-                    },
+                    json=payload,
                     timeout=30,
                 )
 
@@ -869,7 +878,7 @@ BANNED PHRASES — do not use any of these:
     result = _call_groq(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.90,
-        max_tokens=800,
+        max_tokens=1000,    # was 800 — gives the post room to finish its last sentence
     )
 
     if not result:
@@ -936,7 +945,7 @@ Preserve the hashtag line at the bottom exactly as written: #CSharp #DotNet #Pro
     result = _call_groq(
         messages=[{"role": "user", "content": critique_prompt}],
         temperature=0.40,   # Low temp: disciplined editing, not creative rewriting
-        max_tokens=1200,    # More headroom so think block closes before content gets cut
+        max_tokens=1500,    # was 1200 — with reasoning_effort=none, all of this goes to output
     )
 
     if not result:
