@@ -149,6 +149,12 @@ BANNED_PHRASES = [
     "highlights the importance", "data-driven approach",
     "valuable insights", "promising solution",
     "attention to detail", "ultimately benefiting",
+    "seamlessly",
+    "becoming a crucial component",
+    "adaptability to emerging technologies",
+    "higher-level tasks",
+    "real-time feedback",
+    "repetitive tasks",
 ]
 
 # ---------------------------------------------------------------
@@ -341,7 +347,7 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 700)
         raise ValueError("GROQ_API_KEY not set")
 
     # Qwen3-32b first for better voice quality, fallback to llama if unavailable
-    models = ["qwen-qwen3-32b", "llama-3.3-70b-versatile"]
+    models = ["qwen/qwen3-32b", "llama-3.3-70b-versatile"]
 
     for model in models:
         for attempt in range(3):
@@ -716,6 +722,11 @@ or concrete fact from the content that only someone who read the summary would k
 
 5. POINT OF VIEW — Is there a clear, stated position or take — not just description? \
 If not, add one sentence that states what the author actually thinks about this.
+
+6. INVENTED STATISTICS — Does the post contain any specific numbers, percentages, or metrics \
+(e.g. "50-70% reduction", "3x faster") that were NOT explicitly stated in the source article? \
+If yes, remove them entirely. Do not replace with different numbers. \
+Rewrite the sentence to make the same point without fabricated figures.
 
 ---
 
