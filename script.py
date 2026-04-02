@@ -273,8 +273,15 @@ WORD_COUNTS = [
 # UTILITY
 # ---------------------------------------------------------------
 def strip_think_blocks(text: str) -> str:
-    """Remove <think>...</think> reasoning blocks emitted by Qwen3."""
-    return re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE).strip()
+    """
+    Remove <think>...</think> reasoning blocks from Qwen3 output.
+    Also handles unclosed blocks (model hit token limit mid-think).
+    """
+    # Remove complete think blocks
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
+    # Remove unclosed think blocks — everything from <think> to end of string
+    text = re.sub(r'<think>[\s\S]*$', '', text, flags=re.IGNORECASE)
+    return text.strip()
     
 def clean_markdown(text):
      # Strip <think>...</think> reasoning blocks (Qwen3 and other reasoning models)
@@ -739,7 +746,7 @@ Preserve the hashtag line at the bottom exactly as written.
     result = _call_groq(
         messages=[{"role": "user", "content": critique_prompt}],
         temperature=0.40,   # Low temp: disciplined editing, not creative rewriting
-        max_tokens=700,
+        max_tokens=1200,
     )
 
     if not result:
@@ -748,7 +755,31 @@ Preserve the hashtag line at the bottom exactly as written.
 
     return result
 
+def truncate_for_linkedin(text: str, limit: int = 2900) -> str:
+    """
+    Hard cap at 2900 chars (100 char buffer under LinkedIn's 3000 limit).
+    Truncates at the last full sentence before the limit, then reattaches hashtags.
+    """
+    if len(text) <= limit:
+        return text
 
+    # Split off hashtag line — always preserve it
+    lines = text.strip().splitlines()
+    hashtag_line = ""
+    if lines and lines[-1].startswith("#"):
+        hashtag_line = "\n" + lines[-1]
+        text = "\n".join(lines[:-1]).strip()
+
+    # Truncate at last sentence boundary before limit
+    cap = limit - len(hashtag_line)
+    truncated = text[:cap]
+    last_stop = max(truncated.rfind(". "), truncated.rfind(".\n"))
+    if last_stop != -1:
+        truncated = truncated[:last_stop + 1]
+
+    result = truncated.strip() + hashtag_line
+    print(f"WARNING: Post truncated from {len(text)} to {len(result)} characters.")
+    return result
 # ---------------------------------------------------------------
 # IMAGE GENERATION
 # ---------------------------------------------------------------
@@ -984,6 +1015,7 @@ def main():
     linkedin_content = strip_think_blocks(linkedin_content)   # critique pass may also emit think blocks
     linkedin_content = strip_topic_line(linkedin_content)
     linkedin_content = clean_markdown(linkedin_content)
+    linkedin_content = truncate_for_linkedin(linkedin_content)   
 
     print("\n" + "=" * 60)
     print("FINAL POST:")
