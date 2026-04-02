@@ -126,7 +126,7 @@ BANNED_PHRASES = [
     "after years of", "hard-won", "battle-tested",
     "I just learned", "I recently discovered", "building my first",
     "I was surprised to find", "it's all about", "straightforward",
-    "seamless", "dive into", "delve into", "I stumbled upon",
+    "seamless", "seamlessly", "dive into", "delve into", "I stumbled upon",
     "robust", "game-changer", "the key to", "the importance of",
     "in today's world", "in the world of", "navigating",
     "ever-evolving", "tech landscape", "as developers", "as a developer",
@@ -149,12 +149,9 @@ BANNED_PHRASES = [
     "highlights the importance", "data-driven approach",
     "valuable insights", "promising solution",
     "attention to detail", "ultimately benefiting",
-    "seamlessly",
-    "becoming a crucial component",
-    "adaptability to emerging technologies",
-    "higher-level tasks",
-    "real-time feedback",
-    "repetitive tasks",
+    "becoming a crucial component", "adaptability to emerging technologies",
+    "higher-level tasks", "real-time feedback", "repetitive tasks",
+    "work smarter, not harder",
 ]
 
 # ---------------------------------------------------------------
@@ -268,25 +265,30 @@ WORD_COUNTS = [
     "between 120 and 150 words — tight and descriptive: every sentence should add something a reader could not infer themselves",
 ]
 
+REQUIRED_HASHTAGS = "#CSharp #DotNet #Programming #SoftwareDevelopment"
+
 
 # ---------------------------------------------------------------
 # UTILITY
 # ---------------------------------------------------------------
+
 def strip_think_blocks(text: str) -> str:
     """
-    Remove <think>...</think> reasoning blocks from Qwen3 output.
-    Also handles unclosed blocks (model hit token limit mid-think).
+    Remove <think>...</think> reasoning blocks emitted by Qwen3.
+    Also handles unclosed blocks where model hit token limit mid-reasoning.
     """
-    # Remove complete think blocks
+    # Remove complete blocks first
     text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
-    # Remove unclosed think blocks — everything from <think> to end of string
+    # Remove unclosed blocks — everything from <think> to end of string
     text = re.sub(r'<think>[\s\S]*$', '', text, flags=re.IGNORECASE)
     return text.strip()
-    
+
+
 def clean_markdown(text):
-     # Strip <think>...</think> reasoning blocks (Qwen3 and other reasoning models)
+    # Safety net — strip any think blocks that survived earlier passes
     text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
-    
+    text = re.sub(r'<think>[\s\S]*$', '', text, flags=re.IGNORECASE)
+
     # Remove bold **text** or __text__
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     text = re.sub(r'__(.*?)__', r'\1', text)
@@ -343,17 +345,59 @@ def clean_markdown(text):
 def strip_topic_line(text: str) -> str:
     """
     Removes the 'TOPIC: ...' debug line the model outputs at the top.
-    Runs after the critique pass (critique prompt references it), before clean_markdown.
+    Runs after the critique pass so the critique prompt can reference it.
     """
     return re.sub(r'^TOPIC:.*\n?', '', text, flags=re.IGNORECASE).strip()
 
 
-def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 700) -> str | None:
+def enforce_hashtags(text: str) -> str:
+    """
+    Ensures the post always ends with the canonical hashtag line.
+    Drops any malformed or partial hashtag line first, then appends the correct one.
+    """
+    lines = text.strip().splitlines()
+    if lines and lines[-1].strip().startswith("#"):
+        lines = lines[:-1]
+    return "\n".join(lines).strip() + "\n\n" + REQUIRED_HASHTAGS
+
+
+def truncate_for_linkedin(text: str, limit: int = 2900) -> str:
+    """
+    Hard cap at 2900 chars (100 char buffer under LinkedIn's 3000 limit).
+    Truncates at the last full sentence before the limit, reattaches hashtags.
+    Should never trigger in normal operation — purely a safety net.
+    """
+    if len(text) <= limit:
+        return text
+
+    lines = text.strip().splitlines()
+    hashtag_line = ""
+    if lines and lines[-1].strip().startswith("#"):
+        hashtag_line = "\n\n" + lines[-1]
+        text = "\n".join(lines[:-1]).strip()
+
+    cap = limit - len(hashtag_line)
+    truncated = text[:cap]
+    last_stop = max(truncated.rfind(". "), truncated.rfind(".\n"))
+    if last_stop != -1:
+        truncated = truncated[:last_stop + 1]
+
+    result = truncated.strip() + hashtag_line
+    print(f"WARNING: Post truncated from {len(text)} to {len(result)} characters.")
+    return result
+
+
+def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 800) -> str | None:
+    """
+    Shared Groq API call with model fallback and retry logic.
+    Tries qwen/qwen3-32b first (better voice), falls back to llama-3.3-70b-versatile.
+    Returns text content or None if all attempts fail.
+    """
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
     if not GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY not set")
 
-    # Qwen3-32b first for better voice quality, fallback to llama if unavailable
+    # Qwen3-32b first for voice quality — fallback to llama if unavailable on plan
     models = ["qwen/qwen3-32b", "llama-3.3-70b-versatile"]
 
     for model in models:
@@ -381,9 +425,9 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 700)
                     print(f"Groq: using model {model}")
                     return response.json()["choices"][0]["message"]["content"].strip()
 
-                # 400 on this model — no point retrying, try next model
-                if response.status_code == 400:
-                    print(f"Groq model {model} rejected (400) — {response.text[:120]}")
+                # 400/404 on this model — broken request, no point retrying same model
+                if response.status_code in (400, 404):
+                    print(f"Groq model {model} rejected ({response.status_code}) — trying next model")
                     break
 
                 print(f"Groq [{model}] attempt {attempt + 1} failed: {response.status_code} — {response.text[:120]}")
@@ -400,64 +444,36 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 700)
 # DATA SOURCES
 # ---------------------------------------------------------------
 
-def fetch_reddit_posts():
+def fetch_reddit_posts() -> list:
     """
-    Pulls hot/top posts from r/csharp and r/dotnet using Reddit's official OAuth API.
-    Requires REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET environment variables.
+    Pulls hot posts from r/csharp and r/dotnet using Reddit's public JSON API.
+    No credentials required — uses a descriptive User-Agent as Reddit requests.
+    Falls back gracefully on any error.
     """
-    client_id = os.environ.get("REDDIT_CLIENT_ID")
-    client_secret = os.environ.get("REDDIT_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        print("REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET not set — skipping Reddit.")
-        return []
-
-    print("Authenticating with Reddit OAuth...")
-    try:
-        token_response = requests.post(
-            "https://www.reddit.com/api/v1/access_token",
-            auth=(client_id, client_secret),
-            data={"grant_type": "client_credentials"},
-            headers={"User-Agent": "linkedin-dotnet-bot/2.0 by /u/your_reddit_username"},
-            timeout=10
-        )
-        if token_response.status_code != 200:
-            print(f"Reddit OAuth failed: {token_response.status_code} — {token_response.text}")
-            return []
-
-        access_token = token_response.json().get("access_token")
-        if not access_token:
-            print("Reddit OAuth: no access token in response")
-            return []
-
-        print("Reddit OAuth: authenticated successfully")
-
-    except Exception as e:
-        print(f"Reddit OAuth error: {e}")
-        return []
-
-    session = requests.Session()
-    session.headers.update({
-        "Authorization": f"bearer {access_token}",
-        "User-Agent": "linkedin-dotnet-bot/2.0 by /u/your_reddit_username",
-    })
-
     subreddits = ["csharp", "dotnet"]
     sort = "top" if datetime.now().weekday() % 2 == 0 else "hot"
-    time_filter = "week" if sort == "top" else ""
-
     posts = []
+
+    headers = {
+        # Reddit requires a meaningful User-Agent for public JSON access
+        "User-Agent": "linkedin-dotnet-bot/3.0 (content aggregator, non-commercial)"
+    }
 
     for subreddit in subreddits:
         if sort == "top":
-            url = f"https://oauth.reddit.com/r/{subreddit}/top?t={time_filter}&limit=25"
+            url = f"https://www.reddit.com/r/{subreddit}/top.json?t=week&limit=25"
         else:
-            url = f"https://oauth.reddit.com/r/{subreddit}/hot?limit=25"
+            url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit=25"
 
-        print(f"Fetching Reddit r/{subreddit} ({sort})...")
+        print(f"Fetching Reddit r/{subreddit} ({sort}, public JSON)...")
 
         try:
-            response = session.get(url, timeout=15)
+            response = requests.get(url, headers=headers, timeout=15)
+
+            if response.status_code == 429:
+                print(f"  r/{subreddit}: rate limited — skipping")
+                time.sleep(2)
+                continue
 
             if response.status_code != 200:
                 print(f"  r/{subreddit}: error {response.status_code} — skipping")
@@ -474,10 +490,12 @@ def fetch_reddit_posts():
                     continue
                 if post.get("is_video") or post.get("post_hint") == "image":
                     continue
+
                 title = post.get("title", "")
                 if len(title) < 20:
                     continue
 
+                # Prefer selftext body; fall back to URL as context signal
                 summary = post.get("selftext", "")[:500].strip()
                 if not summary:
                     summary = post.get("url", "")
@@ -487,20 +505,84 @@ def fetch_reddit_posts():
                     "link": f"https://reddit.com{post.get('permalink', '')}",
                     "summary": summary,
                     "reactions": post.get("score", 0),
-                    "source": f"r/{subreddit}"
+                    "source": f"r/{subreddit}",
                 })
 
         except Exception as e:
             print(f"  Reddit fetch error for r/{subreddit}: {e}")
             continue
 
+        # Be polite between subreddit requests
         time.sleep(1)
 
     print(f"Total Reddit posts collected: {len(posts)}")
     return posts
 
 
-def fetch_dotnet_blog_posts():
+def fetch_devto_posts() -> list:
+    """
+    Pulls recent articles from dev.to tagged 'dotnet' and 'csharp'.
+    Uses dev.to's free public API — no credentials needed.
+    Returns posts normalised to the same shape as other sources.
+    """
+    tags = ["dotnet", "csharp"]
+    posts = []
+
+    headers = {
+        "User-Agent": "linkedin-dotnet-bot/3.0 (content aggregator, non-commercial)"
+    }
+
+    for tag in tags:
+        url = f"https://dev.to/api/articles?tag={tag}&per_page=20&top=7"
+        print(f"Fetching dev.to tag: #{tag}...")
+
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+
+            if response.status_code != 200:
+                print(f"  dev.to #{tag}: error {response.status_code} — skipping")
+                continue
+
+            articles = response.json()
+            print(f"  dev.to #{tag}: {len(articles)} articles fetched")
+
+            for article in articles:
+                title = article.get("title", "")
+                if len(title) < 20:
+                    continue
+
+                # dev.to gives a description field — good summary signal
+                summary = article.get("description", "")[:500].strip()
+                if not summary:
+                    summary = title
+
+                posts.append({
+                    "title": title,
+                    "link": article.get("url", ""),
+                    "summary": summary,
+                    "reactions": article.get("positive_reactions_count", 0),
+                    "source": f"dev.to/#{tag}",
+                })
+
+        except Exception as e:
+            print(f"  dev.to fetch error for #{tag}: {e}")
+            continue
+
+        time.sleep(0.5)
+
+    # Deduplicate by title (same article can appear under multiple tags)
+    seen = set()
+    deduped = []
+    for p in posts:
+        if p["title"] not in seen:
+            seen.add(p["title"])
+            deduped.append(p)
+
+    print(f"Total dev.to posts collected: {len(deduped)}")
+    return deduped
+
+
+def fetch_dotnet_blog_posts() -> list:
     """
     Pulls latest posts from the official Microsoft .NET Dev Blog RSS feed.
     """
@@ -536,42 +618,56 @@ def fetch_dotnet_blog_posts():
             "link": entry.get("link", ""),
             "summary": summary,
             "reactions": 0,
-            "source": ".NET Dev Blog"
+            "source": ".NET Dev Blog",
         })
 
     print(f"Total .NET blog posts collected: {len(posts)}")
     return posts
 
 
-def fetch_posts():
+def fetch_posts() -> list:
     """
-    Combines Reddit and .NET Dev Blog sources.
-    Picks a balanced mix: 3 from Reddit + 2 from .NET blog.
-    Falls back cleanly if either source is unavailable.
+    Combines three sources: Reddit (public JSON), dev.to, and .NET Dev Blog.
+
+    Selection strategy:
+    - 2 from Reddit (community signal, upvote-ranked)
+    - 2 from dev.to (community articles, reaction-ranked)
+    - 2 from .NET Dev Blog (official authority)
+    - Shuffled and trimmed to 6 total for the model to choose from.
+
+    Falls back cleanly if any source is unavailable.
+    More candidate articles = better topic variety for the model.
     """
     reddit_posts = fetch_reddit_posts()
+    devto_posts = fetch_devto_posts()
     blog_posts = fetch_dotnet_blog_posts()
 
+    # Sort by reactions where available
     reddit_posts.sort(key=lambda x: x["reactions"], reverse=True)
+    devto_posts.sort(key=lambda x: x["reactions"], reverse=True)
     random.shuffle(blog_posts)
 
-    selected_reddit = reddit_posts[:10]
-    selected_blog = blog_posts[:10]
+    # Take top candidates from each source then shuffle within bucket
+    top_reddit = reddit_posts[:10]
+    top_devto = devto_posts[:10]
+    top_blog = blog_posts[:10]
 
-    random.shuffle(selected_reddit)
-    random.shuffle(selected_blog)
+    random.shuffle(top_reddit)
+    random.shuffle(top_devto)
 
-    combined = selected_reddit[:3] + selected_blog[:2]
+    # 2 from each source — gives the model genuine variety across source types
+    combined = top_reddit[:2] + top_devto[:2] + top_blog[:2]
 
-    if not combined:
-        combined = (reddit_posts + blog_posts)[:5]
+    # If a source failed entirely, backfill from the others
+    if len(combined) < 3:
+        combined = (reddit_posts + devto_posts + blog_posts)[:6]
 
     random.shuffle(combined)
-    final = combined[:5]
+    final = combined[:6]
 
     print(f"\nFinal selected posts ({len(final)}):")
     for p in final:
-        print(f"  - [{p['reactions']} upvotes | {p['source']}] {p['title']}")
+        print(f"  - [{p['reactions']} reactions | {p['source']}] {p['title']}")
 
     return final
 
@@ -582,13 +678,13 @@ def fetch_posts():
 
 def generate_linkedin_post(posts: list) -> str:
     """
-    First pass: picks one article, applies the daily angle, writes a draft.
+    First pass: picks one article from the candidates, applies the daily angle, writes a draft.
     """
     today = datetime.now().strftime("%A, %B %d")
     weekday = datetime.now().weekday()
 
     posts_text = "\n\n".join([
-        f"[{p['source']}] {p['title']} ({p['reactions']} upvotes)\n{p['summary']}"
+        f"[{p['source']}] {p['title']} ({p['reactions']} reactions)\n{p['summary']}"
         for p in posts
     ])
 
@@ -669,8 +765,10 @@ silent regressions slip in."
 GOOD: "The new collection expression syntax looks minor, but it quietly removes one of the most \
 common sources of unnecessary allocations in everyday C# code."
 
-NO REPETITION: Each sentence must add something new. Do not restate the same point in different words. \
-If you catch yourself making the same point twice, cut the second instance entirely.
+NO INVENTED STATISTICS: Do not include any percentages, multipliers, or metrics that are not \
+explicitly stated in the source article. Remove them. Do not replace with different numbers.
+
+NO REPETITION: Each sentence must add something new. Do not restate the same point in different words.
 
 NO INVENTED ANECDOTES: Do not write "I recall when..." or fabricated scenarios.
 NO EMOJIS. NO MARKDOWN. NO SMILEY FACES.
@@ -686,7 +784,7 @@ BANNED PHRASES — do not use any of these:
     result = _call_groq(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.90,
-        max_tokens=700,
+        max_tokens=800,
     )
 
     if not result:
@@ -697,11 +795,12 @@ BANNED PHRASES — do not use any of these:
 
 def critique_and_rewrite(draft: str) -> str:
     """
-    Second pass: checks the draft against five failure modes and rewrites only what fails.
+    Second pass: checks the draft against six failure modes and rewrites only what fails.
     Runs at low temperature for disciplined editing rather than creative rewriting.
+    Higher max_tokens than the draft pass to give the think block room to close properly.
     """
     critique_prompt = f"""You are editing a LinkedIn post draft for a senior C#/.NET developer. \
-Your job is to check it against the five failure modes below and rewrite only what fails. \
+Your job is to check it against the six failure modes below and rewrite only what fails. \
 If a section passes, keep it exactly as written.
 
 DRAFT:
@@ -709,7 +808,7 @@ DRAFT:
 
 ---
 
-CHECK THESE FIVE FAILURE MODES IN ORDER:
+CHECK THESE SIX FAILURE MODES IN ORDER:
 
 1. OPENER — Does it open with a generic observation like "Most teams...", "Have you ever wondered...", \
 or "One of the most significant challenges is..."? If yes, rewrite the opener to open with a \
@@ -720,7 +819,8 @@ instance entirely. Every sentence must add something new.
 
 3. FILLER PHRASES — Does it contain any of these: "this is a good reminder", "it's worth noting", \
 "the importance of", "cannot be overstated", "highlights the importance", "valuable insights", \
-"data-driven approach", "demonstrates the platform", "underscores the severity"? \
+"data-driven approach", "demonstrates the platform", "underscores the severity", "seamlessly", \
+"becoming a crucial component", "adaptability to emerging technologies", "work smarter not harder"? \
 If yes, replace with a concrete statement or cut entirely.
 
 4. ARTICLE SUMMARY TEST — Could this post have been written from the article title alone, \
@@ -740,13 +840,13 @@ Rewrite the sentence to make the same point without fabricated figures.
 Output the rewritten post only.
 No preamble. No explanation. No "Here is the rewritten post:".
 Preserve the TOPIC: line at the top if present.
-Preserve the hashtag line at the bottom exactly as written.
+Preserve the hashtag line at the bottom exactly as written: #CSharp #DotNet #Programming #SoftwareDevelopment
 """
 
     result = _call_groq(
         messages=[{"role": "user", "content": critique_prompt}],
         temperature=0.40,   # Low temp: disciplined editing, not creative rewriting
-        max_tokens=1200,
+        max_tokens=1200,    # More headroom so think block closes before content gets cut
     )
 
     if not result:
@@ -755,31 +855,7 @@ Preserve the hashtag line at the bottom exactly as written.
 
     return result
 
-def truncate_for_linkedin(text: str, limit: int = 2900) -> str:
-    """
-    Hard cap at 2900 chars (100 char buffer under LinkedIn's 3000 limit).
-    Truncates at the last full sentence before the limit, then reattaches hashtags.
-    """
-    if len(text) <= limit:
-        return text
 
-    # Split off hashtag line — always preserve it
-    lines = text.strip().splitlines()
-    hashtag_line = ""
-    if lines and lines[-1].startswith("#"):
-        hashtag_line = "\n" + lines[-1]
-        text = "\n".join(lines[:-1]).strip()
-
-    # Truncate at last sentence boundary before limit
-    cap = limit - len(hashtag_line)
-    truncated = text[:cap]
-    last_stop = max(truncated.rfind(". "), truncated.rfind(".\n"))
-    if last_stop != -1:
-        truncated = truncated[:last_stop + 1]
-
-    result = truncated.strip() + hashtag_line
-    print(f"WARNING: Post truncated from {len(text)} to {len(result)} characters.")
-    return result
 # ---------------------------------------------------------------
 # IMAGE GENERATION
 # ---------------------------------------------------------------
@@ -997,7 +1073,7 @@ def main():
     if dry_run:
         print("*** DRY RUN MODE — post will NOT be published to LinkedIn ***\n")
 
-    print("Fetching posts from Reddit and .NET Dev Blog...")
+    print("Fetching posts from Reddit, dev.to, and .NET Dev Blog...")
     posts = fetch_posts()
 
     if not posts:
@@ -1006,22 +1082,28 @@ def main():
 
     print("\nGenerating LinkedIn post (first pass)...")
     linkedin_content = generate_linkedin_post(posts)
-    linkedin_content = strip_think_blocks(linkedin_content)   # strip before critique
+
+    # Strip think blocks before passing to critique so it only sees the actual draft
+    linkedin_content = strip_think_blocks(linkedin_content)
     print("\nDraft (cleaned):")
     print(linkedin_content)
 
     print("\nRunning self-critique pass...")
     linkedin_content = critique_and_rewrite(linkedin_content)
-    linkedin_content = strip_think_blocks(linkedin_content)   # critique pass may also emit think blocks
+
+    # Critique pass on Qwen3 also emits think blocks — strip again
+    linkedin_content = strip_think_blocks(linkedin_content)
     linkedin_content = strip_topic_line(linkedin_content)
     linkedin_content = clean_markdown(linkedin_content)
-    linkedin_content = truncate_for_linkedin(linkedin_content)   
+    linkedin_content = enforce_hashtags(linkedin_content)
+    linkedin_content = truncate_for_linkedin(linkedin_content)
 
     print("\n" + "=" * 60)
     print("FINAL POST:")
     print("=" * 60)
     print(linkedin_content)
     print("=" * 60)
+    print(f"Character count: {len(linkedin_content)} / 3000")
     print(f"Word count: {len(linkedin_content.split())}")
 
     image_bytes = None
