@@ -443,136 +443,159 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 800)
 # ---------------------------------------------------------------
 # DATA SOURCES
 # ---------------------------------------------------------------
+DOTNET_RELEVANCE_KEYWORDS = [
+    "dotnet", ".net", "csharp", "c#", "asp.net", "blazor",
+    "entity framework", "nuget", "roslyn", "maui", "xamarin",
+    "azure functions", "visual studio", "rider", "minimal api",
+    "orleans", "signalr", "ef core", "wpf", "winforms",
+]
+ 
+ 
+def is_dotnet_relevant(title: str, summary: str) -> bool:
+    """Returns True if the title or summary contains at least one .NET/C# keyword."""
+    text = (title + " " + summary).lower()
+    return any(kw in text for kw in DOTNET_RELEVANCE_KEYWORDS)
+ 
+ 
 def fetch_hackernews_posts() -> list:
     """
-    Pulls .NET and C# related posts from HackerNews via Algolia's public search API.
+    Pulls .NET and C# related stories from HackerNews via Algolia's public search API.
     No credentials needed. Works from any IP including GitHub Actions runners.
-    Searches for 'dotnet', 'csharp', and 'asp.net' stories from the past week.
+    Searches for 'dotnet', 'csharp', and 'asp.net' stories from the past 7 days.
+    Filters out off-topic stories using keyword relevance check.
     """
     queries = ["dotnet", "csharp", "asp.net"]
     posts = []
     seen = set()
-
+ 
     headers = {
         "User-Agent": "linkedin-dotnet-bot/3.0 (content aggregator, non-commercial)"
     }
-
+ 
     for query in queries:
         url = (
             f"https://hn.algolia.com/api/v1/search"
-            f"?query={query}&tags=story&numericFilters=created_at_i>"
-            f"{int(time.time()) - 7 * 24 * 3600}"  # past 7 days
+            f"?query={query}&tags=story"
+            f"&numericFilters=created_at_i>{int(time.time()) - 7 * 24 * 3600}"
             f"&hitsPerPage=15"
         )
         print(f"Fetching HackerNews: '{query}'...")
-
+ 
         try:
             response = requests.get(url, headers=headers, timeout=15)
-
+ 
             if response.status_code != 200:
                 print(f"  HN '{query}': error {response.status_code} — skipping")
                 continue
-
+ 
             hits = response.json().get("hits", [])
             print(f"  HN '{query}': {len(hits)} stories fetched")
-
+ 
             for hit in hits:
                 title = hit.get("title", "")
-                if len(title) < 20 or title in seen:
+                summary = hit.get("story_text", "")[:500].strip()
+ 
+                if len(title) < 20:
+                    continue
+                if title in seen:
                     continue
                 if not hit.get("url"):
                     continue
-
+ 
+                # Drop off-topic stories — HN keyword search casts a wide net
+                if not is_dotnet_relevant(title, summary):
+                    print(f"    Skipping off-topic: {title[:70]}")
+                    continue
+ 
                 seen.add(title)
                 posts.append({
                     "title": title,
                     "link": hit.get("url", ""),
-                    "summary": hit.get("story_text", "")[:500].strip() or hit.get("url", ""),
+                    "summary": summary or title,
                     "reactions": hit.get("points", 0),
                     "source": "HackerNews",
                 })
-
+ 
         except Exception as e:
             print(f"  HN fetch error for '{query}': {e}")
             continue
-
+ 
         time.sleep(0.5)
-
+ 
     posts.sort(key=lambda x: x["reactions"], reverse=True)
     print(f"Total HackerNews posts collected: {len(posts)}")
     return posts
-    
+ 
 def fetch_reddit_posts() -> list:
     """
-    Pulls hot posts from r/csharp and r/dotnet using Reddit's public JSON API.
-    No credentials required — uses a descriptive User-Agent as Reddit requests.
-    Falls back gracefully on any error.
+    Pulls posts from r/csharp and r/dotnet via Reddit's RSS feed using feedparser.
+ 
+    Why RSS instead of JSON API:
+    - Reddit's .json endpoint is blocked by Cloudflare for datacenter IPs (GitHub Actions)
+    - Reddit's RSS feeds go through a different path and are not Cloudflare-gated
+    - feedparser handles the XML parsing and gives us clean title/summary fields
+    - No credentials needed — fully public
+ 
+    Falls back gracefully if feedparser is not installed or feeds are unavailable.
     """
+    try:
+        import feedparser
+    except ImportError:
+        print("feedparser not installed — skipping Reddit RSS. Run: pip install feedparser")
+        return []
+ 
     subreddits = ["csharp", "dotnet"]
     sort = "top" if datetime.now().weekday() % 2 == 0 else "hot"
     posts = []
-
-    headers = {
-        # Reddit requires a meaningful User-Agent for public JSON access
-        "User-Agent": "linkedin-dotnet-bot/3.0 (content aggregator, non-commercial)"
-    }
-
+    seen = set()
+ 
     for subreddit in subreddits:
-        if sort == "top":
-            url = f"https://www.reddit.com/r/{subreddit}/top.json?t=week&limit=25"
-        else:
-            url = f"https://www.reddit.com/r/{subreddit}/hot.json?limit=25"
-
-        print(f"Fetching Reddit r/{subreddit} ({sort}, public JSON)...")
-
+        # Reddit RSS supports .rss suffix on standard sort endpoints
+        url = f"https://www.reddit.com/r/{subreddit}/{sort}.rss?limit=25"
+        print(f"Fetching Reddit r/{subreddit} ({sort}, RSS)...")
+ 
         try:
-            response = requests.get(url, headers=headers, timeout=15)
-
-            if response.status_code == 429:
-                print(f"  r/{subreddit}: rate limited — skipping")
-                time.sleep(2)
+            # feedparser fetches and parses in one call
+            feed = feedparser.parse(url)
+ 
+            if feed.bozo and not feed.entries:
+                # bozo=True means malformed feed — but some entries may still parse
+                print(f"  r/{subreddit}: feed error — {feed.bozo_exception}")
                 continue
-
-            if response.status_code != 200:
-                print(f"  r/{subreddit}: error {response.status_code} — skipping")
-                continue
-
-            data = response.json()
-            children = data.get("data", {}).get("children", [])
-            print(f"  r/{subreddit}: {len(children)} posts fetched")
-
-            for child in children:
-                post = child.get("data", {})
-
-                if post.get("stickied"):
-                    continue
-                if post.get("is_video") or post.get("post_hint") == "image":
-                    continue
-
-                title = post.get("title", "")
+ 
+            print(f"  r/{subreddit}: {len(feed.entries)} entries fetched")
+ 
+            for entry in feed.entries:
+                title = entry.get("title", "").strip()
+ 
                 if len(title) < 20:
                     continue
-
-                # Prefer selftext body; fall back to URL as context signal
-                summary = post.get("selftext", "")[:500].strip()
-                if not summary:
-                    summary = post.get("url", "")
-
+                if title in seen:
+                    continue
+ 
+                # RSS summary is HTML — strip tags to get readable text
+                raw_summary = entry.get("summary", "")
+                raw_summary = re.sub(r"<[^>]+>", " ", raw_summary)
+                raw_summary = re.sub(r"\s+", " ", raw_summary).strip()
+                summary = raw_summary[:500]
+ 
+                # Reddit RSS encodes score in some feeds — fall back to 0
+                # Score isn't reliable via RSS but title/summary signal is still useful
+                seen.add(title)
                 posts.append({
                     "title": title,
-                    "link": f"https://reddit.com{post.get('permalink', '')}",
-                    "summary": summary,
-                    "reactions": post.get("score", 0),
+                    "link": entry.get("link", ""),
+                    "summary": summary or title,
+                    "reactions": 0,   # RSS doesn't expose upvote counts reliably
                     "source": f"r/{subreddit}",
                 })
-
+ 
         except Exception as e:
-            print(f"  Reddit fetch error for r/{subreddit}: {e}")
+            print(f"  Reddit RSS fetch error for r/{subreddit}: {e}")
             continue
-
-        # Be polite between subreddit requests
+ 
         time.sleep(1)
-
+ 
     print(f"Total Reddit posts collected: {len(posts)}")
     return posts
 
