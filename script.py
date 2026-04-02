@@ -897,6 +897,11 @@ If not, add one sentence that states what the author actually thinks about this.
 If yes, remove them entirely. Do not replace with different numbers. \
 Rewrite the sentence to make the same point without fabricated figures.
 
+7. PERSONA BREAK — Does the post contain phrases like "the article highlights", "the post explains", \
+"according to the source", or any other phrasing that reveals the author is summarising something \
+they read rather than sharing their own view? If yes, rewrite as a direct assertion in the \
+author's own voice.
+
 ---
 
 Output the rewritten post only.
