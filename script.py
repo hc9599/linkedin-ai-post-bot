@@ -534,7 +534,19 @@ def fetch_hackernews_posts() -> list:
     posts.sort(key=lambda x: x["reactions"], reverse=True)
     print(f"Total HackerNews posts collected: {len(posts)}")
     return posts
- 
+
+# After building the post dict, before appending — add this check:
+REDDIT_SKIP_KEYWORDS = [
+    "beginner", "portfolio projects", "how do i", "help me",
+    "what should i", "which is better", "should i learn",
+    "career advice", "just started", "new to", "getting started",
+    "roast my", "review my code", "first project",
+]
+
+def is_quality_reddit_post(title: str) -> bool:
+    title_lower = title.lower()
+    return not any(kw in title_lower for kw in REDDIT_SKIP_KEYWORDS)
+    
 def fetch_reddit_posts() -> list:
     """
     Pulls posts from r/csharp and r/dotnet via Reddit's RSS feed using feedparser.
@@ -581,7 +593,9 @@ def fetch_reddit_posts() -> list:
                     continue
                 if title in seen:
                     continue
- 
+                if not is_quality_reddit_post(title):
+                    print(f"    Skipping low-quality: {title[:70]}")
+                    continue
                 # RSS summary is HTML — strip tags to get readable text
                 raw_summary = entry.get("summary", "")
                 raw_summary = re.sub(r"<[^>]+>", " ", raw_summary)
@@ -604,11 +618,41 @@ def fetch_reddit_posts() -> list:
             continue
  
         time.sleep(1)
+    
  
     print(f"Total Reddit posts collected: {len(posts)}")
     return posts
 
+def fetch_devto_article_body(url: str) -> str:
+    """
+    Fetches the full body_markdown of a dev.to article via the API.
+    Returns first 800 chars — enough for the model to extract a specific detail.
+    Falls back to empty string on any error.
+    """
+    # dev.to article URLs follow: https://dev.to/username/slug
+    # API endpoint: https://dev.to/api/articles/username/slug
+    try:
+        # Strip https://dev.to/ prefix to get username/slug
+        path = url.replace("https://dev.to/", "").rstrip("/")
+        api_url = f"https://dev.to/api/articles/{path}"
 
+        headers = {
+            "User-Agent": "linkedin-dotnet-bot/3.0 (content aggregator, non-commercial)"
+        }
+        response = requests.get(api_url, headers=headers, timeout=10)
+
+        if response.status_code == 200:
+            body = response.json().get("body_markdown", "")
+            # Strip markdown headers and code blocks, keep prose
+            body = re.sub(r"```[\s\S]*?```", "", body)
+            body = re.sub(r"^#{1,6}\s.*$", "", body, flags=re.MULTILINE)
+            body = re.sub(r"\s+", " ", body).strip()
+            return body[:800]
+
+    except Exception:
+        pass
+
+    return ""
 def fetch_devto_posts() -> list:
     """
     Pulls recent articles from dev.to tagged 'dotnet' and 'csharp'.
@@ -642,7 +686,10 @@ def fetch_devto_posts() -> list:
                     continue
 
                 # dev.to gives a description field — good summary signal
-                summary = article.get("description", "")[:500].strip()
+                description = article.get("description", "")[:300].strip()
+                body = fetch_devto_article_body(article.get("url", ""))
+                # Combine description + opening body for richer context
+                summary = (description + " " + body).strip()[:800]
                 if not summary:
                     summary = title
 
