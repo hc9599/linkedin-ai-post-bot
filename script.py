@@ -152,6 +152,13 @@ BANNED_PHRASES = [
     "becoming a crucial component", "adaptability to emerging technologies",
     "higher-level tasks", "real-time feedback", "repetitive tasks",
     "work smarter, not harder",
+    "silver bullet",
+    "thoughtful integration", 
+    "maximize value",
+    "without compromising",
+    "team ownership",
+    "AI isn't a",
+    "AI is not a",
 ]
 
 # ---------------------------------------------------------------
@@ -625,96 +632,141 @@ def fetch_reddit_posts() -> list:
 
 def fetch_devto_article_body(url: str) -> str:
     """
-    Fetches the full body_markdown of a dev.to article via the API.
-    Returns first 800 chars — enough for the model to extract a specific detail.
-    Falls back to empty string on any error.
+    Fetches the full body_markdown of a dev.to article via the articles API.
+    Returns up to 800 chars of cleaned prose — enough for the model to extract
+    a specific technical detail that wouldn't be obvious from the title alone.
+ 
+    dev.to article URLs follow: https://dev.to/username/slug
+    API endpoint:               https://dev.to/api/articles/username/slug
+ 
+    Falls back to empty string on any error so fetch_devto_posts() is never blocked.
+    Adds a short sleep to avoid hammering the API across 20+ articles.
     """
-    # dev.to article URLs follow: https://dev.to/username/slug
-    # API endpoint: https://dev.to/api/articles/username/slug
+    if not url:
+        return ""
+ 
     try:
-        # Strip https://dev.to/ prefix to get username/slug
+        # Strip scheme and host to get the path: "username/slug"
         path = url.replace("https://dev.to/", "").rstrip("/")
+ 
+        # Skip anything that doesn't look like a valid article path
+        if not path or "/" not in path:
+            return ""
+ 
         api_url = f"https://dev.to/api/articles/{path}"
-
+ 
         headers = {
             "User-Agent": "linkedin-dotnet-bot/3.0 (content aggregator, non-commercial)"
         }
+ 
         response = requests.get(api_url, headers=headers, timeout=10)
-
-        if response.status_code == 200:
-            body = response.json().get("body_markdown", "")
-            # Strip markdown headers and code blocks, keep prose
-            body = re.sub(r"```[\s\S]*?```", "", body)
-            body = re.sub(r"^#{1,6}\s.*$", "", body, flags=re.MULTILINE)
-            body = re.sub(r"\s+", " ", body).strip()
-            return body[:800]
-
+ 
+        if response.status_code != 200:
+            return ""
+ 
+        body = response.json().get("body_markdown", "")
+ 
+        if not body:
+            return ""
+ 
+        # Clean the markdown body down to readable prose:
+        # 1. Remove fenced code blocks — we want concepts, not code snippets
+        body = re.sub(r"```[\s\S]*?```", "", body)
+        # 2. Remove inline code
+        body = re.sub(r"`[^`]+`", "", body)
+        # 3. Remove markdown headers
+        body = re.sub(r"^#{1,6}\s.*$", "", body, flags=re.MULTILINE)
+        # 4. Remove markdown links but keep the label text
+        body = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", body)
+        # 5. Remove image tags
+        body = re.sub(r"!\[[^\]]*\]\([^\)]+\)", "", body)
+        # 6. Remove bold/italic markers
+        body = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", body)
+        # 7. Collapse whitespace
+        body = re.sub(r"\s+", " ", body).strip()
+ 
+        return body[:800]
+ 
     except Exception:
-        pass
-
-    return ""
+        return ""
+        
 def fetch_devto_posts() -> list:
     """
     Pulls recent articles from dev.to tagged 'dotnet' and 'csharp'.
     Uses dev.to's free public API — no credentials needed.
-    Returns posts normalised to the same shape as other sources.
+ 
+    For each article, fetches the full body_markdown via fetch_devto_article_body()
+    and combines it with the description field to give the model enough specific
+    content to anchor on — rather than just a title reworded as a description.
+ 
+    Deduplicates articles that appear under both tags.
     """
     tags = ["dotnet", "csharp"]
     posts = []
-
+ 
     headers = {
         "User-Agent": "linkedin-dotnet-bot/3.0 (content aggregator, non-commercial)"
     }
-
+ 
     for tag in tags:
         url = f"https://dev.to/api/articles?tag={tag}&per_page=20&top=7"
         print(f"Fetching dev.to tag: #{tag}...")
-
+ 
         try:
             response = requests.get(url, headers=headers, timeout=15)
-
+ 
             if response.status_code != 200:
                 print(f"  dev.to #{tag}: error {response.status_code} — skipping")
                 continue
-
+ 
             articles = response.json()
             print(f"  dev.to #{tag}: {len(articles)} articles fetched")
-
+ 
             for article in articles:
                 title = article.get("title", "")
                 if len(title) < 20:
                     continue
-
-                # dev.to gives a description field — good summary signal
+ 
+                article_url = article.get("url", "")
+ 
+                # description is often just the title reworded — useful as a
+                # fallback but not rich enough on its own for specific detail
                 description = article.get("description", "")[:300].strip()
-                body = fetch_devto_article_body(article.get("url", ""))
-                # Combine description + opening body for richer context
-                summary = (description + " " + body).strip()[:800]
-                if not summary:
-                    summary = title
-
+ 
+                # Fetch actual article body for specific technical content
+                # Small sleep inside the loop to avoid rate-limiting across 20 articles
+                body = fetch_devto_article_body(article_url)
+                time.sleep(0.3)
+ 
+                # Combine: description first (clean signal), then body (specific detail)
+                # Body may be empty if fetch failed — description alone is still better than title
+                if body:
+                    summary = (description + " " + body).strip()[:800]
+                else:
+                    summary = description or title
+ 
                 posts.append({
                     "title": title,
-                    "link": article.get("url", ""),
+                    "link": article_url,
                     "summary": summary,
                     "reactions": article.get("positive_reactions_count", 0),
                     "source": f"dev.to/#{tag}",
                 })
-
+ 
         except Exception as e:
             print(f"  dev.to fetch error for #{tag}: {e}")
             continue
-
+ 
         time.sleep(0.5)
-
-    # Deduplicate by title (same article can appear under multiple tags)
+ 
+    # Deduplicate by title — same article often appears under both dotnet and csharp tags
     seen = set()
     deduped = []
     for p in posts:
         if p["title"] not in seen:
             seen.add(p["title"])
             deduped.append(p)
-
+ 
     print(f"Total dev.to posts collected: {len(deduped)}")
     return deduped
 
@@ -804,6 +856,17 @@ def fetch_posts() -> list:
         combined = (reddit_posts + devto_posts + blog_posts + hn_posts)[:6]
 
     random.shuffle(combined)
+    # Deduplicate across sources by normalised title
+    # Keeps the first occurrence (highest ranked source wins)
+    seen_titles = set()
+    deduped = []
+    for p in combined:
+        # Normalise: lowercase, strip punctuation for fuzzy-ish matching
+        norm = re.sub(r"[^a-z0-9\s]", "", p["title"].lower()).strip()
+        if norm not in seen_titles:
+            seen_titles.add(norm)
+            deduped.append(p)
+
     final = combined[:6]
 
     print(f"\nFinal selected posts ({len(final)}):")
