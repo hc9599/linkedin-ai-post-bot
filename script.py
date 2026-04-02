@@ -165,6 +165,7 @@ BANNED_PHRASES = [
     "without requiring a complete overhaul",
     "new layer of support",
     "not just automation",
+    "context switching between languages",
 ]
 
 # ---------------------------------------------------------------
@@ -491,7 +492,7 @@ def fetch_hackernews_posts() -> list:
     Searches for 'dotnet', 'csharp', and 'asp.net' stories from the past 7 days.
     Filters out off-topic stories using keyword relevance check.
     """
-    queries = ["dotnet", "csharp", "asp.net"]
+    queries = ["dotnet", "csharp", "asp.net", "csharp performance", "dotnet architecture"]
     posts = []
     seen = set()
  
@@ -503,7 +504,7 @@ def fetch_hackernews_posts() -> list:
         url = (
             f"https://hn.algolia.com/api/v1/search"
             f"?query={query}&tags=story"
-            f"&numericFilters=created_at_i>{int(time.time()) - 7 * 24 * 3600}"
+            f"&numericFilters=created_at_i>{int(time.time()) - (14 if datetime.now().weekday() >= 5 else 7) * 24 * 3600}"
             f"&hitsPerPage=15"
         )
         print(f"Fetching HackerNews: '{query}'...")
