@@ -359,13 +359,18 @@ def strip_topic_line(text: str) -> str:
 
 def enforce_hashtags(text: str) -> str:
     """
-    Ensures the post always ends with the canonical hashtag line.
-    Drops any malformed or partial hashtag line first, then appends the correct one.
+    Strips any existing hashtag block from the post body, then appends
+    the canonical hashtag line. Handles hashtags on their own line OR
+    appended inline to the last sentence.
     """
-    lines = text.strip().splitlines()
-    if lines and lines[-1].strip().startswith("#"):
-        lines = lines[:-1]
-    return "\n".join(lines).strip() + "\n\n" + REQUIRED_HASHTAGS
+    # Remove the four known hashtags wherever they appear in the text
+    for tag in ["#CSharp", "#DotNet", "#Programming", "#SoftwareDevelopment"]:
+        text = text.replace(tag, "")
+
+    # Clean up any blank lines that stripping left behind
+    text = re.sub(r'\n{3,}', '\n\n', text).strip()
+
+    return text + "\n\n" + REQUIRED_HASHTAGS
 
 
 def truncate_for_linkedin(text: str, limit: int = 2900) -> str:
