@@ -443,7 +443,65 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 800)
 # ---------------------------------------------------------------
 # DATA SOURCES
 # ---------------------------------------------------------------
+def fetch_hackernews_posts() -> list:
+    """
+    Pulls .NET and C# related posts from HackerNews via Algolia's public search API.
+    No credentials needed. Works from any IP including GitHub Actions runners.
+    Searches for 'dotnet', 'csharp', and 'asp.net' stories from the past week.
+    """
+    queries = ["dotnet", "csharp", "asp.net"]
+    posts = []
+    seen = set()
 
+    headers = {
+        "User-Agent": "linkedin-dotnet-bot/3.0 (content aggregator, non-commercial)"
+    }
+
+    for query in queries:
+        url = (
+            f"https://hn.algolia.com/api/v1/search"
+            f"?query={query}&tags=story&numericFilters=created_at_i>"
+            f"{int(time.time()) - 7 * 24 * 3600}"  # past 7 days
+            f"&hitsPerPage=15"
+        )
+        print(f"Fetching HackerNews: '{query}'...")
+
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+
+            if response.status_code != 200:
+                print(f"  HN '{query}': error {response.status_code} — skipping")
+                continue
+
+            hits = response.json().get("hits", [])
+            print(f"  HN '{query}': {len(hits)} stories fetched")
+
+            for hit in hits:
+                title = hit.get("title", "")
+                if len(title) < 20 or title in seen:
+                    continue
+                if not hit.get("url"):
+                    continue
+
+                seen.add(title)
+                posts.append({
+                    "title": title,
+                    "link": hit.get("url", ""),
+                    "summary": hit.get("story_text", "")[:500].strip() or hit.get("url", ""),
+                    "reactions": hit.get("points", 0),
+                    "source": "HackerNews",
+                })
+
+        except Exception as e:
+            print(f"  HN fetch error for '{query}': {e}")
+            continue
+
+        time.sleep(0.5)
+
+    posts.sort(key=lambda x: x["reactions"], reverse=True)
+    print(f"Total HackerNews posts collected: {len(posts)}")
+    return posts
+    
 def fetch_reddit_posts() -> list:
     """
     Pulls hot posts from r/csharp and r/dotnet using Reddit's public JSON API.
@@ -638,29 +696,33 @@ def fetch_posts() -> list:
     Falls back cleanly if any source is unavailable.
     More candidate articles = better topic variety for the model.
     """
+    hn_posts = fetch_hackernews_posts()      # replaces Reddit — works in CI
     reddit_posts = fetch_reddit_posts()
     devto_posts = fetch_devto_posts()
     blog_posts = fetch_dotnet_blog_posts()
 
     # Sort by reactions where available
+    hn_posts.sort(key=lambda x: x["reactions"], reverse=True)
     reddit_posts.sort(key=lambda x: x["reactions"], reverse=True)
     devto_posts.sort(key=lambda x: x["reactions"], reverse=True)
     random.shuffle(blog_posts)
 
     # Take top candidates from each source then shuffle within bucket
+    top_hn = hn_posts[:10]
     top_reddit = reddit_posts[:10]
     top_devto = devto_posts[:10]
     top_blog = blog_posts[:10]
 
     random.shuffle(top_reddit)
     random.shuffle(top_devto)
+    random.shuffle(top_hn)
 
     # 2 from each source — gives the model genuine variety across source types
-    combined = top_reddit[:2] + top_devto[:2] + top_blog[:2]
+    combined = top_reddit[:2] + top_devto[:2] + top_blog[:2] + top_hn[:2]
 
     # If a source failed entirely, backfill from the others
     if len(combined) < 3:
-        combined = (reddit_posts + devto_posts + blog_posts)[:6]
+        combined = (reddit_posts + devto_posts + blog_posts + hn_posts)[:6]
 
     random.shuffle(combined)
     final = combined[:6]
@@ -852,7 +914,20 @@ Preserve the hashtag line at the bottom exactly as written: #CSharp #DotNet #Pro
     if not result:
         print("critique_and_rewrite: Groq failed — returning original draft")
         return draft
+    # Safety check: if critique result is suspiciously short vs the draft,
+    # the think block stripper likely ate the content — fall back to draft
+    cleaned_result = strip_think_blocks(result)
+    draft_word_count = len(draft.split())
+    result_word_count = len(cleaned_result.split())
 
+    if result_word_count < (draft_word_count * 0.5):
+        print(
+            f"critique_and_rewrite: result ({result_word_count} words) is less than 50% of "
+            f"draft ({draft_word_count} words) — critique likely failed, keeping draft"
+        )
+        return draft
+
+    return result
     return result
 
 
