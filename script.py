@@ -159,6 +159,12 @@ BANNED_PHRASES = [
     "team ownership",
     "AI isn't a",
     "AI is not a",
+    "worth evaluating",
+    "reduce friction",
+    "real-world complexity",
+    "without requiring a complete overhaul",
+    "new layer of support",
+    "not just automation",
 ]
 
 # ---------------------------------------------------------------
@@ -1024,7 +1030,10 @@ or "One of the most significant challenges is..."? If yes, rewrite the opener to
 specific behaviour, a direct position, or a named tradeoff. Do not start with a generalisation.
 
 2. REPETITION — Does any point appear more than once in different words? If yes, cut the second \
-instance entirely. Every sentence must add something new.
+instance entirely. Every sentence must add something new. Also check for structural echoes: \
+consecutive sentences opening with the same phrase pattern \
+(e.g. "What stands out... What's underappreciated...") count as repetition even if the content \
+differs. Cut or rewrite the second instance.
 
 3. FILLER PHRASES — Does it contain any of these: "this is a good reminder", "it's worth noting", \
 "the importance of", "cannot be overstated", "highlights the importance", "valuable insights", \
@@ -1079,7 +1088,6 @@ Preserve the hashtag line at the bottom exactly as written: #CSharp #DotNet #Pro
         )
         return draft
 
-    return result
     return result
 
 
