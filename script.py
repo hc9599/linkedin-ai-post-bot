@@ -267,7 +267,7 @@ WORD_COUNTS = [
 # UTILITY
 # ---------------------------------------------------------------
 def strip_think_blocks(text: str) -> str:
-    """Remove <think>...</think> reasoning blocks from Qwen3 output."""
+    """Remove <think>...</think> reasoning blocks emitted by Qwen3."""
     return re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE).strip()
     
 def clean_markdown(text):
@@ -336,44 +336,49 @@ def strip_topic_line(text: str) -> str:
 
 
 def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 700) -> str | None:
-    """
-    Shared Groq API call with retry logic. Returns text content or None on failure.
-    """
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
     if not GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY not set")
 
-    for attempt in range(3):
-        try:
-            response = requests.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "qwen/qwen3-32b",   # Better voice fidelity than llama-3.3-70b
-                    "messages": messages,
-                    "temperature": temperature,
-                    "top_p": 0.92,
-                    "frequency_penalty": 0.5,
-                    "presence_penalty": 0.4,
-                    "max_tokens": max_tokens,
-                    "extra_body": {
-                        "thinking": False   # disables <think> blocks entirely
-                    }
-                },
-                timeout=30,
-            )
-            if response.status_code == 200:
-                return response.json()["choices"][0]["message"]["content"].strip()
+    # Qwen3-32b first for better voice quality, fallback to llama if unavailable
+    models = ["qwen-qwen3-32b", "llama-3.3-70b-versatile"]
 
-            print(f"Groq attempt {attempt + 1} failed: {response.status_code} — {response.text}")
+    for model in models:
+        for attempt in range(3):
+            try:
+                response = requests.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {GROQ_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": model,
+                        "messages": messages,
+                        "temperature": temperature,
+                        "top_p": 0.92,
+                        "frequency_penalty": 0.5,
+                        "presence_penalty": 0.4,
+                        "max_tokens": max_tokens,
+                    },
+                    timeout=30,
+                )
 
-        except Exception as e:
-            print(f"Groq attempt {attempt + 1} exception: {e}")
+                if response.status_code == 200:
+                    print(f"Groq: using model {model}")
+                    return response.json()["choices"][0]["message"]["content"].strip()
 
-        time.sleep(2 ** attempt)
+                # 400 on this model — no point retrying, try next model
+                if response.status_code == 400:
+                    print(f"Groq model {model} rejected (400) — {response.text[:120]}")
+                    break
+
+                print(f"Groq [{model}] attempt {attempt + 1} failed: {response.status_code} — {response.text[:120]}")
+
+            except Exception as e:
+                print(f"Groq [{model}] attempt {attempt + 1} exception: {e}")
+
+            time.sleep(2 ** attempt)
 
     return None
 
@@ -959,18 +964,13 @@ def main():
 
     print("\nGenerating LinkedIn post (first pass)...")
     linkedin_content = generate_linkedin_post(posts)
-    # Strip think blocks BEFORE critique so the editor only sees the actual draft
-    linkedin_content = strip_think_blocks(linkedin_content)
-    print("\nDraft (raw):")
+    linkedin_content = strip_think_blocks(linkedin_content)   # strip before critique
+    print("\nDraft (cleaned):")
     print(linkedin_content)
 
     print("\nRunning self-critique pass...")
     linkedin_content = critique_and_rewrite(linkedin_content)
-    print("\nAfter critique (raw):")
-    print(linkedin_content)
-
-    print("\nCleaning...")
-    linkedin_content = strip_think_blocks(linkedin_content)  # critique pass may also emit think blocks
+    linkedin_content = strip_think_blocks(linkedin_content)   # critique pass may also emit think blocks
     linkedin_content = strip_topic_line(linkedin_content)
     linkedin_content = clean_markdown(linkedin_content)
 
