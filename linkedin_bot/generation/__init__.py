@@ -16,6 +16,7 @@ from linkedin_bot.generation.style import (
     FORMATS,
     OPENERS,
     TOPIC_ANGLES,
+    WIT_MODES,
     WORD_COUNTS,
 )
 from linkedin_bot.llm import LLMClient
@@ -27,6 +28,7 @@ class PostGenerator:
 
     def __init__(self, llm: LLMClient):
         self._llm = llm
+        self._wit_mode = WIT_MODES[0]
 
     def draft(self, posts: list[CandidatePost]) -> str:
         """First pass: pick one article and write a LinkedIn post in the daily style."""
@@ -43,40 +45,53 @@ class PostGenerator:
         chosen_ending = random.choice(ENDINGS)
         chosen_format = random.choice(FORMATS)
         chosen_word_count = random.choice(WORD_COUNTS)
+        # straight / dry / witty — witty a bit more often so the feed has a hook
+        chosen_wit = random.choices(WIT_MODES, weights=[2, 3, 4], k=1)[0]
+        self._wit_mode = chosen_wit
+        print(f"Voice: {chosen_wit['name']}")
 
         banned_phrases_str = "\n".join(f"- {p}" for p in BANNED_PHRASES)
         banned_openers_str = "\n".join(f"- {p}" for p in BANNED_OPENERS)
 
         prompt = f"""Today is {today}. Ghostwrite a LinkedIn post as if YOU are a senior C#/.NET \
-developer posting from your own account after reading one article. 5+ years backend. \
-Not a content intern. Not a thought-leadership ghostwriter. Not ChatGPT.
+developer posting from your own account. 5+ years backend.
 
-The finished post must pass the coworker test: if someone on your team saw it, they should \
-think you typed it, not that a model summarised a blog.
+JOB: take inspiration from ONE article, then post YOUR viewpoint. \
+You did not write the article. You did not ship their product. \
+Do not rewrite their blog as if it is your content.
 
-VOICE (this is the main job):
-- First person is fine: I, we, our CI, our solutions. No fake war stories.
+Ratio: about 20% spark (one concrete detail so a reader knows what nudged you), \
+80% your take — agree, push back, what you'd try, what you'd skip.
+
+The finished post must pass the coworker test: they should think you typed a reaction, \
+not that you pasted a summary or claimed the work.
+
+VOICE:
+- First person: I, we, our CI. No fake war stories.
 - Contractions: don't, it's, I've, we're.
-- Uneven sentence length. One short. Then a longer one. Not a drumbeat of similar clauses.
-- Short paragraphs. Blank lines. How people actually post on LinkedIn.
-- Name APIs, tools, and failure modes. Skip the TED framing.
+- Uneven sentence length. Short paragraphs. Blank lines.
+- Name APIs, tools, failure modes. Skip TED framing.
 - Straight ASCII quotes and hyphens. No em-dashes. No curly quotes.
-- Do not write for recruiters. Do not explain software to a general audience.
+- You may nod at the source in one short clause ("Microsoft's post", "this writeup"). \
+Do not say "the article highlights".
 
-BAD (AI / press-release — never do this):
-"Enterprise .NET builds generate binary logs that hide the root cause of intermittent failures \
-behind gigabytes of serialized data. Most teams treat these logs as black boxes. In practice this \
-turns a week-long mystery into a few minutes of guided investigation, keeping pipelines reliable \
-and compliant."
+HUMOR TODAY ({chosen_wit['name']}):
+{chosen_wit['instruction']}
 
-GOOD (human):
-"Binlogs are already sitting on the agent after most of our CI runs. Almost nobody opens them \
-because they're huge and the viewer is a chore.
+BAD (you rewriting their post / pretending you built it):
+"There's a VS Code analyzer that parses MSBuild binary logs, surfaces the failing task, \
+suggests a fix, and diffs successive builds. This turns a week-long mystery into minutes."
 
-There's a VS Code analyzer now that points Copilot at the failing MSBuild task and diffs two \
-builds. That's the actual job — the flaky restore, not a demo.
+BAD (press-release):
+"Enterprise .NET builds generate binary logs that hide root cause behind gigabytes of data. \
+Most teams treat these as black boxes."
 
-I'll try it the next time the pipeline says failed and the console is useless."
+GOOD (your view, sparked by it, a little bite):
+"Binlogs have been sitting on our agents for years. We keep them the same way we keep \
+old USB cables - theoretically useful, never touched.
+
+Microsoft put Copilot on the failing MSBuild task and a build diff. If it actually points \
+at the restore that died, I'll use it. If it just narrates the same XML in a friendly voice, I'm out."
 
 TODAY'S ANGLE:
 {angle['focus']}
@@ -91,9 +106,8 @@ ARTICLE SELECTION:
 Choose ONE article from the list below that is clearly about C# or .NET \
 (language, runtime, libraries, tooling, or the .NET ecosystem). \
 If an article is only loosely related, skip it. \
-Read the summary carefully. \
-The post MUST reference at least one specific technical detail or concrete fact from the summary — \
-not just the title. A post that could have been written from the title alone fails this test.
+Read the summary. Steal ONE specific technical detail as proof you read it. \
+Do not walk through the rest of the piece.
 
 Keep the TOPIC line exact — we use it later to attach the source link to the LinkedIn post.
 
@@ -121,12 +135,11 @@ ENDING:
 FORMAT:
 {chosen_format}
 
-POINT OF VIEW — take one, in human words:
+POINT OF VIEW — this is the post. The article is the excuse.
 BAD: "This is a good reminder that security should be top of mind."
-BAD: "This feature is worth paying attention to."
-BAD: "Most teams apply these updates without reading the changelog."
+BAD: restating the article's feature list in your own words.
 GOOD: "I'll read the changelog on this one. That's where the silent break usually hides."
-GOOD: "Collection expressions look small. They kill a bunch of the allocations I still see in reviews."
+GOOD: "Collection expressions look small. They kill allocations I still see in reviews."
 
 NO INVENTED STATISTICS: Do not include any percentages, multipliers, or metrics that are not \
 explicitly stated in the source article. Remove them. Do not replace with different numbers.
@@ -146,7 +159,7 @@ BANNED PHRASES — do not use any of these:
 
         result = self._llm.complete(
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.82,
+            temperature=0.88 if chosen_wit["name"] == "witty" else 0.80,
             max_tokens=1000,
         )
 
@@ -157,10 +170,14 @@ BANNED PHRASES — do not use any of these:
 
     def critique(self, draft: str) -> str:
         """Second pass: fix generic openers, filler, fake stats. Keep draft if AI chokes."""
+        wit = self._wit_mode
         critique_prompt = f"""You are editing a LinkedIn post so it sounds like a real senior \
-C#/.NET developer typed it — not a language model, not a press release.
+C#/.NET developer reacting to something they read — not rewriting the article, \
+not a press release, not ChatGPT.
 
-Rewrite anything that fails. If a section already sounds human and specific, keep it.
+Rewrite anything that fails. If a section already sounds human and is their view, keep it.
+
+HUMOR MODE ({wit['name']}): {wit['instruction']}
 
 DRAFT:
 {draft}
@@ -169,8 +186,8 @@ DRAFT:
 
 CHECK IN ORDER:
 
-1. OPENER — Generic ("Most teams...", "Have you ever wondered...", Wikipedia definition of the \
-problem)? Rewrite: named tool/API, or a concrete annoyance. No industry preamble.
+1. OPENER — Generic ("Most teams...", "Have you ever wondered...", Wikipedia definition)? \
+Rewrite: named tool/API, annoyance, or a witty hook. No industry preamble.
 
 2. REPETITION — Same point twice, or sentences that all start the same way? Cut the second.
 
@@ -179,25 +196,27 @@ problem)? Rewrite: named tool/API, or a concrete annoyance. No industry preamble
 "highlights the importance", "valuable insights", "data-driven", "seamlessly", \
 "underscores", "leverage", "unlock", "here's the thing", "when it comes to", \
 "reliable and compliant", "guided investigation", "incident resolution", \
-"what are your thoughts", "curious to hear", "it's not just", "more than just". \
-Replace with a concrete statement or delete.
+"what are your thoughts", "curious to hear", "it's not just", "more than just", \
+"allows you to", "enables you to". Replace with a concrete statement or delete.
 
-4. ARTICLE SUMMARY TEST — Could this have been written from the title alone? If yes, \
-anchor on one specific technical detail from the content.
+4. NOT A BLOG REWRITE — If this reads like the author explaining the article's product \
+(feature list, how it works, benefits) as if they wrote it, cut the recap to ONE sentence \
+and make the rest their viewpoint (try / skip / argue). \
+Keep ONE concrete detail as spark. Do not add more summary.
 
-5. POINT OF VIEW — Is there a human take (try it, skip it, wait, this is the part that \
-matters)? If not, add one short sentence in first person. Not a slogan.
+5. POINT OF VIEW — Is ~80% their take? If not, add it. First person. Not a slogan. \
+Do not claim they built the thing in the article.
 
 6. INVENTED STATISTICS — Numbers that were not in the source? Delete them. Do not invent new ones.
 
-7. PERSONA BREAK — "the article highlights", "the post explains", "according to the source"? \
-Rewrite as the author's own words.
+7. SOURCE NOD — OK: one short clause ("Microsoft's post", "this writeup"). \
+Fail: "the article highlights", "the post explains", "according to the source" — rewrite those.
 
-8. HUMAN VOICE — Does it still sound like ChatGPT?
-Signs: em-dashes, curly quotes, every sentence the same length, paired adjectives \
-("reliable and compliant"), "injects X into the Y loop", lecture tone, recap-then-moral.
-Fix: contractions, short paragraphs with blank lines, uneven rhythm, straight ASCII \
-punctuation, stop when the point is made. Coworker-test: would a teammate believe you wrote this?
+8. HUMAN VOICE — ChatGPT tells: em-dashes, curly quotes, even sentence length, paired \
+adjectives, lecture tone. Fix: contractions, short paragraphs, uneven rhythm, ASCII punctuation.
+
+9. WIT — If mode is witty or dry, there should be one line a .NET person might smirk at. \
+If missing, add one. If mode is straight, do not add jokes. Never add "who's with me" energy.
 
 ---
 

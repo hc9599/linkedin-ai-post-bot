@@ -141,9 +141,11 @@ PASS
 or
 FAIL: <short reason in plain English>
 
-PASS only if both are true:
+PASS only if all are true:
 1. A C# or .NET developer would recognise this as their world.
-2. A reader can tell the take was sparked by that source article.
+2. A reader can tell the take was sparked by that source article (a riff/opinion is enough; \
+it does not need to summarise the article).
+3. The post does not claim the author built or wrote the thing described in the source.
 """
     result = llm.complete(
         messages=[{"role": "user", "content": prompt}],
