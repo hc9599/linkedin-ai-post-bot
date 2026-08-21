@@ -409,15 +409,16 @@ def truncate_for_linkedin(text: str, limit: int = 2900) -> str:
 def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 800) -> str | None:
     """
     Shared Groq API call with model fallback and retry logic.
-    Tries qwen/qwen3-32b first (better voice), falls back to llama-3.3-70b-versatile.
+    Tries openai/gpt-oss-120b first, falls back to openai/gpt-oss-20b.
     Returns text content or None if all attempts fail.
     """
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
     if not GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY not set")
 
-    # Qwen3-32b first for voice quality — fallback to llama if unavailable on plan
-    models = ["qwen/qwen3-32b", "llama-3.3-70b-versatile"]
+    # gpt-oss-120b first (Groq replacement for retired qwen3-32b / llama-3.3-70b)
+    # gpt-oss-20b as production fallback if 120b is unavailable
+    models = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
 
     for model in models:
         for attempt in range(3):
@@ -432,12 +433,13 @@ def _call_groq(messages: list, temperature: float = 0.85, max_tokens: int = 800)
                     "max_tokens": max_tokens,
                 }
 
-                # Qwen3 supports reasoning_effort on Groq — set to "none" to
-                # suppress think blocks entirely and use the full token budget
-                # for actual output. Llama doesn't support this, so only apply
-                # it when we're on the Qwen3 model.
+                # reasoning_effort values are family-specific:
+                # Qwen: "none" / "default". GPT-OSS: "low" / "medium" / "high".
+                # Low effort keeps think tokens from eating the output budget.
                 if "qwen" in model:
                     payload["reasoning_effort"] = "none"
+                elif "gpt-oss" in model:
+                    payload["reasoning_effort"] = "low"
 
                 response = requests.post(
                     "https://api.groq.com/openai/v1/chat/completions",
