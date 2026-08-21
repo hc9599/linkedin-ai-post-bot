@@ -9,6 +9,23 @@ import re
 
 from linkedin_bot.config import HASHTAGS, REQUIRED_HASHTAGS
 
+# High-signal leftover GPT phrasing. We warn in logs; the rewrite pass should have cut these.
+_AI_TELL_WARN = [
+    r"\bin practice\b",
+    r"\bthe result is\b",
+    r"\bwhat are your thoughts\b",
+    r"\bcurious to hear\b",
+    r"\bblack boxes?\b",
+    r"\bleverage\b",
+    r"\bdelve\b",
+    r"\bseamless(?:ly)?\b",
+    r"\bunderscores?\b",
+    r"\bhere's the thing\b",
+    r"\bwhen it comes to\b",
+    r"\bin today's\b",
+    r"\bgame-?changer\b",
+]
+
 
 def strip_think_blocks(text: str) -> str:
     """Cut out hidden thinking notes some models wrap in <think> tags."""
@@ -73,6 +90,34 @@ def clean_markdown(text):
     text = re.sub(r'\n{3,}', '\n\n', text)
 
     return text.strip()
+
+
+def normalize_ai_punctuation(text: str) -> str:
+    """
+    Models love em-dashes and curly quotes. Real LinkedIn posts usually do not.
+    Flatten to plain ASCII so the post does not look generated.
+    """
+    text = text.replace("\u00a0", " ")
+    text = text.replace("\u2014", " - ")
+    text = text.replace("\u2013", "-")
+    text = text.replace("\u2011", "-")
+    text = text.replace("\u2010", "-")
+    text = text.replace("\u2212", "-")
+    text = text.replace("\u2018", "'")
+    text = text.replace("\u2019", "'")
+    text = text.replace("\u201c", '"')
+    text = text.replace("\u201d", '"')
+    text = re.sub(r"[ \t]+-[ \t]+", " - ", text)
+    text = re.sub(r"[^\S\n]{2,}", " ", text)
+    return text.strip()
+
+
+def warn_ai_tells(text: str) -> str:
+    """Log leftover AI phrasing. Does not rewrite — that is the model's job."""
+    hits = [pat for pat in _AI_TELL_WARN if re.search(pat, text, flags=re.IGNORECASE)]
+    if hits:
+        print(f"WARNING: post still has AI-ish phrasing: {hits}")
+    return text
 
 
 def strip_topic_line(text: str) -> str:
@@ -141,6 +186,8 @@ def default_cleaning_pipeline() -> CleaningPipeline:
         strip_think_blocks,
         strip_topic_line,
         clean_markdown,
+        normalize_ai_punctuation,
         enforce_hashtags,
         truncate_for_linkedin,
+        warn_ai_tells,
     ])

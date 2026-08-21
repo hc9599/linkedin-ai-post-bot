@@ -28,13 +28,42 @@ def _norm(value: str) -> str:
     return re.sub(r"[^a-z0-9\s]", "", value.lower()).strip()
 
 
+_STOP_WORDS = {
+    "a", "an", "the", "for", "with", "and", "of", "to", "in", "on",
+    "from", "into", "how", "why", "what", "that", "this", "your",
+}
+
+
+def _tokens(value: str) -> set[str]:
+    return {t for t in _norm(value).split() if len(t) > 2 and t not in _STOP_WORDS}
+
+
+def _overlap_score(left: str, right: str) -> float:
+    """Share of the shorter title that also appears in the longer one. 1.0 = same words."""
+    a = _tokens(left)
+    b = _tokens(right)
+    if not a or not b:
+        return 0.0
+    return len(a & b) / min(len(a), len(b))
+
+
 def match_source(topic_title: str | None, posts: list[CandidatePost], body: str) -> CandidatePost | None:
     """
     Find the article the AI used.
 
-    First try the TOPIC: headline. If that is missing, see if a candidate title
-    shows up in the post body.
+    Models often rewrite the headline. We still match if enough words overlap
+    (so "Meet the MSBuild Binlog Analyzer..." maps to "Analyze MSBuild Binary Logs...").
     """
+    best: CandidatePost | None = None
+    best_score = 0.0
+
+    def consider(text: str, post: CandidatePost, bonus: float = 0.0) -> None:
+        nonlocal best, best_score
+        score = _overlap_score(text, post.title) + bonus
+        if score > best_score:
+            best = post
+            best_score = score
+
     if topic_title:
         want = _norm(topic_title)
         for post in posts:
@@ -42,13 +71,17 @@ def match_source(topic_title: str | None, posts: list[CandidatePost], body: str)
             if not got:
                 continue
             if want == got or want in got or got in want:
+                print(f"Review: exact source match -> {post.title}")
                 return post
+            consider(topic_title, post)
 
-    body_norm = _norm(body)
     for post in posts:
-        got = _norm(post.title)
-        if got and len(got) >= 12 and got in body_norm:
-            return post
+        consider(body, post)
+
+    # Need a real overlap, not one shared word like "code".
+    if best is not None and best_score >= 0.4:
+        print(f"Review: fuzzy source match ({best_score:.2f}) -> {best.title}")
+        return best
     return None
 
 

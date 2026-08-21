@@ -6,108 +6,78 @@
 TOPIC_ANGLES = {
     0: {  # Monday — language & runtime
         "focus": (
-            "Focus on C# language features or .NET runtime improvements — new syntax, "
-            "type system changes, performance characteristics, or how the language is evolving. "
-            "Explain what the change means in practice, not just what it is."
+            "Focus on a C# language feature or .NET runtime change — syntax, types, "
+            "performance, or how the language is moving. Talk about what you would actually "
+            "do differently in code, not a feature recap."
         ),
         "audience_signal": (
-            "Recruiting managers should come away thinking: this person understands the platform "
-            "deeply and keeps up with where it is going. Developers should feel like a peer is "
-            "sharing something genuinely useful."
+            "Write for other C# developers. A hiring manager might lurk, but do not explain "
+            "the industry to them. If a peer would skip the paragraph, cut it."
         ),
-        "avoid": "Do not reduce it to a feature announcement. Connect it to real decisions a developer makes.",
+        "avoid": "Do not announce the feature. Say what it changes in day-to-day C#.",
     },
     1: {  # Tuesday — tooling & developer experience
         "focus": (
-            "Focus on developer tooling, IDE improvements, SDK changes, debugging experience, "
-            "NuGet, or build systems. Describe the practical impact on daily development work."
+            "Focus on tooling — IDE, SDK, debugger, NuGet, MSBuild. What changes in the "
+            "afternoon you already work, not a product tour."
         ),
         "audience_signal": (
-            "Recruiting managers should see evidence of someone who cares about engineering craft "
-            "and productivity, not just shipping. Developers should find something they can actually "
-            "use or think about today."
+            "Sound like you tried the tool, or you know why you still will not. Peers, not a review site."
         ),
-        "avoid": (
-            "Do not make it sound like a product review. Frame it around what changes in your "
-            "workflow and why that matters."
-        ),
+        "avoid": "Do not write a product review. No 'this will transform your workflow'.",
     },
     2: {  # Wednesday — architecture & engineering decisions
         "focus": (
-            "Focus on software architecture, design patterns, or engineering tradeoffs in .NET — "
-            "async patterns, dependency injection, modular design, scalability decisions, or how "
-            "to structure systems that are built to last."
+            "Focus on a .NET architecture tradeoff — async, DI, module boundaries, how the "
+            "system is shaped. Name the tension."
         ),
         "audience_signal": (
-            "Recruiting managers should see a developer who thinks beyond features — someone who "
-            "reasons about systems and tradeoffs. Developers should find a concrete angle they "
-            "can apply or debate."
+            "Another senior should want to agree or argue. Vague 'think about tradeoffs' is a fail."
         ),
-        "avoid": "No vague architecture talk. Name a specific pattern, tradeoff, or decision point.",
+        "avoid": "No architecture poetry. One named pattern or decision.",
     },
     3: {  # Thursday — C# positioning & career perspective
         "focus": (
-            "Focus on where C# and .NET stand in the broader software industry — how it compares "
-            "to other languages, why developers choose it, what the community is doing, or what "
-            "makes it a strong platform choice for serious backend work in the current market."
+            "Focus on where C# / .NET sits this year — compared to other stacks, hiring, "
+            "community, or why you still pick it for backend work."
         ),
         "audience_signal": (
-            "Recruiting managers should see someone who understands the market and can articulate "
-            "why their stack matters. Developers should find a perspective they can agree or "
-            "disagree with — something worth discussing."
+            "A take someone can disagree with. Cheerleading 'C# is great' is a fail."
         ),
-        "avoid": (
-            "Do not write a generic 'C# is great' post. Take a position on something specific — "
-            "adoption, community, competition, or direction."
-        ),
+        "avoid": "Do not write a generic 'C# is great' post. Pick adoption, competition, or direction.",
     },
     4: {  # Friday — enterprise & infrastructure
         "focus": (
-            "Focus on enterprise-scale .NET concerns — cloud infrastructure, data pipelines, "
-            "file system integrations, security and permissions, compliance, or building systems "
-            "that handle large volumes reliably. Be specific about what breaks at scale."
+            "Focus on enterprise .NET — cloud, data, security, pipelines, what actually "
+            "breaks when the system is large. Be specific about the failure mode."
         ),
         "audience_signal": (
-            "Recruiting managers should see someone with genuine enterprise experience, not someone "
-            "who has only built tutorials. Developers working at scale should recognise the problem "
-            "being described."
+            "Someone who has been paged should nod. Tutorial-speak is a fail."
         ),
         "avoid": (
-            "Do not reference NAS, SMB, or internal product details. Keep it generalisable to any "
-            "senior .NET developer working on backend infrastructure."
+            "Do not reference NAS, SMB, or internal product details. Keep it any senior "
+            ".NET backend person could own."
         ),
     },
     5: {  # Saturday — performance & internals
         "focus": (
-            "Focus on .NET performance — Span<T>, memory management, GC behaviour, benchmarking, "
-            "JIT compilation, or low-level runtime details. Explain why it matters and what a "
-            "developer should actually do with the information."
+            "Focus on .NET performance — Span<T>, GC, benchmarks, JIT. What you would "
+            "measure or change, not a concept name-drop."
         ),
         "audience_signal": (
-            "Recruiting managers should see someone who cares about performance at a level most "
-            "developers do not. Developers should learn something concrete or be challenged to "
-            "think about performance differently."
+            "Show you have been bitten by allocations or pauses. Abstract 'performance matters' is a fail."
         ),
-        "avoid": (
-            "Do not just name a concept. Show the implication — what goes wrong without it, "
-            "or what gets better with it."
-        ),
+        "avoid": "Do not just name a concept. Say what goes wrong without it.",
     },
     6: {  # Sunday — new releases & future direction
         "focus": (
-            "Focus on what is new or coming in .NET — release previews, the C# roadmap, upcoming "
-            "features, or the direction the platform is heading. Evaluate what the changes actually "
-            "mean for developers, not just what they are."
+            "Focus on what is new or coming in .NET. Filter it: what you would try, skip, "
+            "or wait on. Not a changelog."
         ),
         "audience_signal": (
-            "Recruiting managers should see someone who stays current and thinks critically about "
-            "platform direction, not just someone who reads release notes. Developers should get "
-            "a useful filter on what to pay attention to."
+            "A useful opinion on the roadmap. Reciting release notes is a fail."
         ),
-        "avoid": (
-            "Do not write a changelog summary. Evaluate, filter, or push back on what is worth "
-            "caring about."
-        ),
+        "avoid": "Do not write a changelog summary. Push back or filter.",
     },
 }
 
@@ -138,7 +108,7 @@ BANNED_PHRASES = [
     "warrant a closer look", "without a second thought",
     "should always be", "most critical aspect",
     "cannot be overstated", "goes without saying",
-    "in conclusion", "to summarise", "as we know",
+    "in conclusion", "to summarise", "to summarize", "as we know",
     "underscores the severity", "demonstrates the platform",
     "highlights the importance", "data-driven approach",
     "valuable insights", "promising solution",
@@ -160,6 +130,73 @@ BANNED_PHRASES = [
     "new layer of support",
     "not just automation",
     "context switching between languages",
+    # LinkedIn-GPT tells
+    "in practice",
+    "the result is",
+    "missed opportunities",
+    "injects AI",
+    "debugging loop",
+    "black box",
+    "black boxes",
+    "large-scale pipelines",
+    "reliable and compliant",
+    "guided investigation",
+    "incident resolution",
+    "what are your thoughts",
+    "curious to hear",
+    "let's unpack",
+    "let's dive",
+    "here's the thing",
+    "here's why",
+    "the reality is",
+    "the truth is",
+    "make no mistake",
+    "at its core",
+    "when it comes to",
+    "plays a crucial role",
+    "it is important to",
+    "not only",
+    "but also",
+    "leverage",
+    "unlock",
+    "empower",
+    "cutting-edge",
+    "revolutionary",
+    "furthermore",
+    "moreover",
+    "additionally",
+    "it's not just",
+    "more than just",
+    "that's exactly how",
+    "in an era",
+    "landscape",
+    "tapestry",
+    "plethora",
+    "utilize",
+    "facilitate",
+    "holistic",
+    "paradigm",
+    "synergy",
+    "pivotal",
+    "testament",
+    "foster",
+    "harness",
+    "realm of",
+    "delve",
+    "underscore",
+    "underscores",
+    "showcasing",
+    "showcases",
+    "deep dive",
+    "game changer",
+    "transform your",
+    "elevate",
+    "supercharge",
+    "thought leadership",
+    "let that sink",
+    "drop a comment",
+    "hit like if",
+    "agree?",
 ]
 
 # ---------------------------------------------------------------
@@ -175,7 +212,16 @@ BANNED_OPENERS = [
     "The integration of X is...",
     "The recent release of X...",
     "X is becoming increasingly...",
+    "In today's...",
+    "In an era...",
+    "It's no secret...",
+    "Let's be honest...",
+    "Here's the thing...",
+    "Imagine this...",
+    "Picture this...",
+    "Enterprise .NET / In the world of...",
     "Any opener that reads like the first line of a Wikipedia article",
+    "Any opener that defines a problem for 'the industry' instead of a thing you actually touch",
     "Any opener that makes a generic observation applying to all software development",
 ]
 
@@ -184,25 +230,24 @@ BANNED_OPENERS = [
 # ---------------------------------------------------------------
 OPENERS = [
     (
-        "Open with a clear, direct statement of what the topic is and why it matters — no jargon "
-        "without explanation, but do not oversimplify. A recruiting manager should understand the "
-        "stakes; a developer should respect the framing."
+        "Open on a named thing you actually use (MSBuild, binlogs, Convert.ChangeType, "
+        "a specific API). First sentence should sound like a Slack message, not a whitepaper."
     ),
     (
-        "Open with a contrast: what the default behaviour or assumption is, versus what the "
-        "evidence or experience suggests is better. Name the default specifically — not just 'most people'."
+        "Open with a concrete annoyance: something slow, opaque, easy to get wrong. "
+        "Name the tool or API. No 'most teams'."
     ),
     (
-        "Open with a direct, confident observation about a real tradeoff or tension in the topic. "
-        "State your position clearly in the first sentence. Do not hedge."
+        "Open mid-thought, like you already started talking. Example shape: "
+        "'We've had X for years. Nobody uses it because Y.'"
     ),
     (
-        "Open by naming a specific behaviour, pattern, or change — then in the next sentence, "
-        "explain what makes it significant. Do not assume the reader already knows why it matters."
+        "Open with what you would try or skip, then say why in the next line. "
+        "Opinion first, recap later (or never)."
     ),
     (
-        "Open with a short scenario (2 sentences max) that sets up the problem. "
-        "It should be recognisable to developers and understandable to anyone who has worked with software teams."
+        "Open with one specific workflow moment (CI log, debugger, PR review). "
+        "Keep it to two short sentences max."
     ),
 ]
 
@@ -211,24 +256,22 @@ OPENERS = [
 # ---------------------------------------------------------------
 ENDINGS = [
     (
-        "End with a single genuine question that invites both developers and non-developers to share "
-        "a perspective. Not rhetorical — actually curious about how others have dealt with this."
+        "End with what you will actually do next (try it on the next failure, ignore it, "
+        "wait for GA). No 'what are your thoughts?'"
     ),
     (
-        "End with your clearest takeaway in one sentence. State it plainly so a non-developer "
-        "can repeat it to someone else and have it still make sense."
+        "End with one blunt takeaway in plain words. No moral. No 'this matters because teams'."
     ),
     (
-        "End with a concrete action or check — one specific thing a developer can do, "
-        "explained clearly enough that a manager understands why it is worth doing."
+        "End with one check a .NET person can run this week. One sentence."
     ),
     (
-        "End by connecting the technical point to a broader engineering or team dynamic — "
-        "one sentence that shows you think about the human side of the work, not just the code."
+        "End by naming who this is for (the person on the flaky pipeline, the one drowning "
+        "in binlogs). Then stop."
     ),
     (
-        "End with an honest, grounded observation about how common it is to get this wrong, "
-        "or how long it takes most teams to notice the problem."
+        "End with a small doubt or limit ('not magic', 'still have to read the task output'). "
+        "Humans hedge a little. Do not write a TED closer."
     ),
 ]
 
@@ -237,35 +280,27 @@ ENDINGS = [
 # ---------------------------------------------------------------
 FORMATS = [
     (
-        "Two paragraphs. First paragraph (2-3 sentences): explain the context or problem clearly "
-        "enough that a non-developer can follow it. Second paragraph (3-4 sentences): give your "
-        "specific take, name what is interesting or underappreciated about it, and explain the "
-        "practical implication. Every sentence ends with a full stop."
+        "LinkedIn-native: 3 or 4 short paragraphs, 1-2 sentences each, blank line between. "
+        "Look like a person typed this on their phone, not a blog post pasted in."
     ),
     (
-        "Three short paragraphs, 2-3 sentences each. "
-        "First: set up the situation or problem. "
-        "Second: explain what most people miss or get wrong about it. "
-        "Third: your specific take and what it means in practice. "
-        "Every sentence ends with a full stop. No bullet points."
+        "Hook line (one sentence, own paragraph). Then two short paragraphs of 2 sentences. "
+        "Then a one-line closer. No wall of text."
     ),
     (
-        "One flowing paragraph of 6-8 sentences. Open with the context, move to the technical "
-        "detail, explain why it matters to someone building real systems, and close with a clear "
-        "point. Write so a smart non-developer can follow the logic even if they miss the "
-        "technical details."
+        "Four to seven short lines. Some lines can be one sentence. Use line breaks the way "
+        "people do on LinkedIn. No bullet points. No numbered list."
     ),
     (
-        "Short lines, one sentence each, building toward a conclusion. "
-        "Start with the broad context (1-2 lines), move to the specific technical point (2-3 lines), "
-        "then explain the implication clearly (2 lines). "
-        "Every line is a complete sentence. Full stops throughout. No fragments. No dashes as sentence starters."
+        "Two short paragraphs only. First: the situation. Second: your take + what you'd do. "
+        "Keep sentences uneven — mix a short one with a longer one. Do not make every sentence "
+        "the same length."
     ),
 ]
 
 WORD_COUNTS = [
-    "between 130 and 160 words — enough to explain the context and make a clear point",
-    "between 150 and 180 words — room for a specific example or concrete detail that grounds the insight",
-    "between 160 and 200 words — use the space to build a proper argument: context, insight, implication",
-    "between 120 and 150 words — tight and descriptive: every sentence should add something a reader could not infer themselves",
+    "between 80 and 110 words — short, like a real update, not an essay",
+    "between 90 and 130 words — room for one concrete detail from the article",
+    "between 70 and 100 words — tight. Cut anything a coworker already knows",
+    "between 100 and 140 words — still a post, not a blog. Stop when the point is made",
 ]

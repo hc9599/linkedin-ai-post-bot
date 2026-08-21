@@ -9,6 +9,8 @@ DOTNET_RELEVANCE_KEYWORDS = [
     "entity framework", "nuget", "roslyn", "maui", "xamarin",
     "azure functions", "visual studio", "rider", "minimal api",
     "orleans", "signalr", "ef core", "wpf", "winforms",
+    "msbuild", "binlog", "testing.platform", "microsoft.testing",
+    "xunit", "nunit", "mstest", "aspnet",
 ]
 
 

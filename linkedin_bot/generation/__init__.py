@@ -47,24 +47,40 @@ class PostGenerator:
         banned_phrases_str = "\n".join(f"- {p}" for p in BANNED_PHRASES)
         banned_openers_str = "\n".join(f"- {p}" for p in BANNED_OPENERS)
 
-        prompt = f"""Today is {today}. You are ghostwriting a LinkedIn post for a senior C#/.NET developer \
-with 5+ years of backend and enterprise experience.
+        prompt = f"""Today is {today}. Ghostwrite a LinkedIn post as if YOU are a senior C#/.NET \
+developer posting from your own account after reading one article. 5+ years backend. \
+Not a content intern. Not a thought-leadership ghostwriter. Not ChatGPT.
 
-TARGET AUDIENCE — write so both of these people find value in the post:
-1. Recruiting managers: not developers. They assess whether this person thinks clearly, \
-communicates well, and has genuine depth. They should come away thinking "this person knows \
-what they are doing."
-2. Developer community: experienced .NET and C# developers. They should find something \
-specific, accurate, and worth engaging with — a real point they can agree with, push back on, \
-or learn from.
+The finished post must pass the coworker test: if someone on your team saw it, they should \
+think you typed it, not that a model summarised a blog.
 
-The post must be descriptive enough that a non-developer can follow the point, and specific \
-enough that an experienced developer respects it.
+VOICE (this is the main job):
+- First person is fine: I, we, our CI, our solutions. No fake war stories.
+- Contractions: don't, it's, I've, we're.
+- Uneven sentence length. One short. Then a longer one. Not a drumbeat of similar clauses.
+- Short paragraphs. Blank lines. How people actually post on LinkedIn.
+- Name APIs, tools, and failure modes. Skip the TED framing.
+- Straight ASCII quotes and hyphens. No em-dashes. No curly quotes.
+- Do not write for recruiters. Do not explain software to a general audience.
+
+BAD (AI / press-release — never do this):
+"Enterprise .NET builds generate binary logs that hide the root cause of intermittent failures \
+behind gigabytes of serialized data. Most teams treat these logs as black boxes. In practice this \
+turns a week-long mystery into a few minutes of guided investigation, keeping pipelines reliable \
+and compliant."
+
+GOOD (human):
+"Binlogs are already sitting on the agent after most of our CI runs. Almost nobody opens them \
+because they're huge and the viewer is a chore.
+
+There's a VS Code analyzer now that points Copilot at the failing MSBuild task and diffs two \
+builds. That's the actual job — the flaky restore, not a demo.
+
+I'll try it the next time the pipeline says failed and the console is useless."
 
 TODAY'S ANGLE:
 {angle['focus']}
 
-AUDIENCE SIGNAL FOR TODAY:
 {angle['audience_signal']}
 
 {angle['avoid']}
@@ -85,7 +101,8 @@ Keep the TOPIC line exact — we use it later to attach the source link to the L
 
 ---
 
-FIRST LINE: Write exactly: TOPIC: [article title you chose]
+FIRST LINE: Write exactly: TOPIC: then paste the chosen article title character-for-character \
+from the list. Do not rewrite, market, or summarise the title.
 Then write the post on a new line. Nothing else before the post.
 
 ---
@@ -104,18 +121,12 @@ ENDING:
 FORMAT:
 {chosen_format}
 
-TONE:
-- Clear and direct. Confident without being arrogant. Peer-level, not lecture-level.
-- Dry wit is welcome. Corporate enthusiasm is not.
-- Write like a developer who has seen things and formed opinions, not like someone summarising a press release.
-
-POINT OF VIEW — you must take one:
-BAD: "This is a good reminder that security should be top of mind." (no stance, obvious)
-BAD: "This feature is worth paying attention to." (vague, non-committal)
-GOOD: "Most teams apply these updates without reading the changelog — and that is exactly how \
-silent regressions slip in."
-GOOD: "The new collection expression syntax looks minor, but it quietly removes one of the most \
-common sources of unnecessary allocations in everyday C# code."
+POINT OF VIEW — take one, in human words:
+BAD: "This is a good reminder that security should be top of mind."
+BAD: "This feature is worth paying attention to."
+BAD: "Most teams apply these updates without reading the changelog."
+GOOD: "I'll read the changelog on this one. That's where the silent break usually hides."
+GOOD: "Collection expressions look small. They kill a bunch of the allocations I still see in reviews."
 
 NO INVENTED STATISTICS: Do not include any percentages, multipliers, or metrics that are not \
 explicitly stated in the source article. Remove them. Do not replace with different numbers.
@@ -135,7 +146,7 @@ BANNED PHRASES — do not use any of these:
 
         result = self._llm.complete(
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.90,
+            temperature=0.82,
             max_tokens=1000,
         )
 
@@ -146,49 +157,47 @@ BANNED PHRASES — do not use any of these:
 
     def critique(self, draft: str) -> str:
         """Second pass: fix generic openers, filler, fake stats. Keep draft if AI chokes."""
-        critique_prompt = f"""You are editing a LinkedIn post draft for a senior C#/.NET developer. \
-Your job is to check it against the six failure modes below and rewrite only what fails. \
-If a section passes, keep it exactly as written.
+        critique_prompt = f"""You are editing a LinkedIn post so it sounds like a real senior \
+C#/.NET developer typed it — not a language model, not a press release.
+
+Rewrite anything that fails. If a section already sounds human and specific, keep it.
 
 DRAFT:
 {draft}
 
 ---
 
-CHECK THESE SIX FAILURE MODES IN ORDER:
+CHECK IN ORDER:
 
-1. OPENER — Does it open with a generic observation like "Most teams...", "Have you ever wondered...", \
-or "One of the most significant challenges is..."? If yes, rewrite the opener to open with a \
-specific behaviour, a direct position, or a named tradeoff. Do not start with a generalisation.
+1. OPENER — Generic ("Most teams...", "Have you ever wondered...", Wikipedia definition of the \
+problem)? Rewrite: named tool/API, or a concrete annoyance. No industry preamble.
 
-2. REPETITION — Does any point appear more than once in different words? If yes, cut the second \
-instance entirely. Every sentence must add something new. Also check for structural echoes: \
-consecutive sentences opening with the same phrase pattern \
-(e.g. "What stands out... What's underappreciated...") count as repetition even if the content \
-differs. Cut or rewrite the second instance.
+2. REPETITION — Same point twice, or sentences that all start the same way? Cut the second.
 
-3. FILLER PHRASES — Does it contain any of these: "this is a good reminder", "it's worth noting", \
-"the importance of", "cannot be overstated", "highlights the importance", "valuable insights", \
-"data-driven approach", "demonstrates the platform", "underscores the severity", "seamlessly", \
-"becoming a crucial component", "adaptability to emerging technologies", "work smarter not harder"? \
-If yes, replace with a concrete statement or cut entirely.
+3. FILLER / GPT TELLS — Cut or rewrite: "in practice", "the result is", "black box", \
+"good reminder", "it's worth noting", "the importance of", "cannot be overstated", \
+"highlights the importance", "valuable insights", "data-driven", "seamlessly", \
+"underscores", "leverage", "unlock", "here's the thing", "when it comes to", \
+"reliable and compliant", "guided investigation", "incident resolution", \
+"what are your thoughts", "curious to hear", "it's not just", "more than just". \
+Replace with a concrete statement or delete.
 
-4. ARTICLE SUMMARY TEST — Could this post have been written from the article title alone, \
-without reading the summary? If yes, rewrite to anchor on one specific technical detail \
-or concrete fact from the content that only someone who read the summary would know.
+4. ARTICLE SUMMARY TEST — Could this have been written from the title alone? If yes, \
+anchor on one specific technical detail from the content.
 
-5. POINT OF VIEW — Is there a clear, stated position or take — not just description? \
-If not, add one sentence that states what the author actually thinks about this.
+5. POINT OF VIEW — Is there a human take (try it, skip it, wait, this is the part that \
+matters)? If not, add one short sentence in first person. Not a slogan.
 
-6. INVENTED STATISTICS — Does the post contain any specific numbers, percentages, or metrics \
-(e.g. "50-70% reduction", "3x faster") that were NOT explicitly stated in the source article? \
-If yes, remove them entirely. Do not replace with different numbers. \
-Rewrite the sentence to make the same point without fabricated figures.
+6. INVENTED STATISTICS — Numbers that were not in the source? Delete them. Do not invent new ones.
 
-7. PERSONA BREAK — Does the post contain phrases like "the article highlights", "the post explains", \
-"according to the source", or any other phrasing that reveals the author is summarising something \
-they read rather than sharing their own view? If yes, rewrite as a direct assertion in the \
-author's own voice.
+7. PERSONA BREAK — "the article highlights", "the post explains", "according to the source"? \
+Rewrite as the author's own words.
+
+8. HUMAN VOICE — Does it still sound like ChatGPT?
+Signs: em-dashes, curly quotes, every sentence the same length, paired adjectives \
+("reliable and compliant"), "injects X into the Y loop", lecture tone, recap-then-moral.
+Fix: contractions, short paragraphs with blank lines, uneven rhythm, straight ASCII \
+punctuation, stop when the point is made. Coworker-test: would a teammate believe you wrote this?
 
 ---
 
