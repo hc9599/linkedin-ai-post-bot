@@ -1,3 +1,12 @@
+"""
+Talking to the internet, the careful way.
+
+GitHub Actions runs on shared cloud machines. Many sites treat those as bots
+and return 403, 429, or a "please wait" page. This file:
+  1. Sends a browser-looking User-Agent
+  2. Retries a few times with a wait
+  3. Gives up so the caller can try a backup URL
+"""
 import time
 
 import requests
@@ -25,6 +34,7 @@ _SESSION: requests.Session | None = None
 
 
 def http_session() -> requests.Session:
+    """One shared connection pool so we reuse settings (timeouts, retries, headers)."""
     global _SESSION
     if _SESSION is None:
         session = requests.Session()
@@ -46,6 +56,7 @@ def http_session() -> requests.Session:
 
 
 def _is_challenge_page(content: bytes) -> bool:
+    """True if the site sent a captcha / "just a moment" wall instead of real data."""
     head = content[:2500].decode("utf-8", errors="ignore").lower()
     markers = (
         "just a moment",
@@ -58,6 +69,7 @@ def _is_challenge_page(content: bytes) -> bool:
 
 
 def is_feed_payload(content: bytes) -> bool:
+    """True if the bytes look like an RSS/Atom feed, not an HTML block page."""
     head = content.lstrip()[:2000].lower()
     return (
         b"<rss" in head
@@ -77,8 +89,10 @@ def get_with_retry(
     retry_statuses: set[int] | None = None,
 ) -> requests.Response | None:
     """
-    GET with backoff. Retries timeouts, 403/429/5xx, and Cloudflare challenge pages.
-    Returns None if every attempt fails — callers fall back or skip.
+    Download a web page/API and try again if the site is busy or blocking us.
+
+    Returns the response if it looks usable. Returns None if every try failed
+    so the caller can switch to a backup website.
     """
     retry_on = retry_statuses if retry_statuses is not None else RETRYABLE_GET
     merged_headers = dict(DEFAULT_HEADERS)
@@ -116,6 +130,7 @@ def fetch_json(
     attempts: int = 5,
     params: dict | None = None,
 ) -> object | None:
+    """GET JSON (Hacker News, dev.to). None if the site refused or sent garbage."""
     response = get_with_retry(url, timeout=timeout, attempts=attempts, params=params)
     if response is None:
         return None
@@ -136,8 +151,11 @@ def fetch_feed_entries(
     attempts: int = 3,
 ) -> list:
     """
-    Fetch RSS/Atom ourselves (browser UA) then parse bytes.
-    feedparser.parse(url) uses a bot UA and gets blocked on GitHub Actions.
+    Download an RSS feed ourselves, then parse it.
+
+    We do not let feedparser fetch the URL. It announces itself as a bot and
+    GitHub Actions IPs get blocked. We fetch with a browser-looking header,
+    then only parse the bytes.
     """
     if feedparser is None:
         print("feedparser not installed — cannot parse RSS")
@@ -173,7 +191,7 @@ def request_write_with_retry(
     attempts: int = 3,
     **kwargs,
 ) -> requests.Response:
-    """POST/PUT with timeout + retry on transient statuses. Raises on final failure."""
+    """Send data (LinkedIn post/upload). Retry if the network blipped. Raise if still failing."""
     last_exc: Exception | None = None
     for attempt in range(attempts):
         try:

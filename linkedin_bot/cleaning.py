@@ -1,3 +1,9 @@
+"""
+Make the draft look like a normal LinkedIn post.
+
+The AI sometimes adds markdown, emojis, a TOPIC: header, or leftover
+<think> notes. LinkedIn does not want that. Each function below is one cleanup.
+"""
 from collections.abc import Callable
 import re
 
@@ -5,10 +11,7 @@ from linkedin_bot.config import HASHTAGS, REQUIRED_HASHTAGS
 
 
 def strip_think_blocks(text: str) -> str:
-    """
-    Remove <think>...</think> reasoning blocks emitted by Qwen3.
-    Also handles unclosed blocks where model hit token limit mid-reasoning.
-    """
+    """Cut out hidden thinking notes some models wrap in <think> tags."""
     text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
     text = re.sub(r'<think>[\s\S]*$', '', text, flags=re.IGNORECASE)
     return text.strip()
@@ -121,7 +124,7 @@ def truncate_for_linkedin(text: str, limit: int = 2900) -> str:
 
 
 class CleaningPipeline:
-    """Chain of Responsibility: each step transforms the post text in order."""
+    """Run a list of cleaners in order. Easy to add a new cleanup without rewriting main."""
 
     def __init__(self, steps: list[Callable[[str], str]]):
         self._steps = steps
@@ -133,6 +136,7 @@ class CleaningPipeline:
 
 
 def default_cleaning_pipeline() -> CleaningPipeline:
+    """The usual LinkedIn polish: thinking notes, TOPIC line, markdown, hashtags, length."""
     return CleaningPipeline([
         strip_think_blocks,
         strip_topic_line,

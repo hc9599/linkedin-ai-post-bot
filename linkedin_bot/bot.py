@@ -1,3 +1,9 @@
+"""
+The daily run: find articles, write a post, clean it, maybe make an image, maybe publish.
+
+Think of DailyPostBot as the conductor. It does not fetch Reddit itself —
+it asks helpers to do each step.
+"""
 import argparse
 from datetime import datetime
 
@@ -15,7 +21,7 @@ from linkedin_bot.sources.reddit import RedditSource
 
 
 class DailyPostBot:
-    """Facade: fetch → draft → critique → clean → optional image → publish."""
+    """Runs one full LinkedIn post from start to finish."""
 
     def __init__(
         self,
@@ -45,6 +51,7 @@ class DailyPostBot:
         print("\nGenerating LinkedIn post (first pass)...")
         linkedin_content = self._generator.draft(posts)
 
+        # Models sometimes dump private "thinking" text. Strip it before editing.
         linkedin_content = strip_think_blocks(linkedin_content)
         print("\nDraft (cleaned):")
         print(linkedin_content)
@@ -52,6 +59,7 @@ class DailyPostBot:
         print("\nRunning self-critique pass...")
         linkedin_content = self._generator.critique(linkedin_content)
 
+        # Hashtags, no markdown, no leftover TOPIC line, LinkedIn length cap.
         linkedin_content = self._cleaner.apply(linkedin_content)
 
         print("\n" + "=" * 60)
@@ -83,6 +91,11 @@ class DailyPostBot:
 
 
 def compose() -> DailyPostBot:
+    """
+    Plug the real services together.
+
+    Swap a source here (add another website) without rewriting the rest of the bot.
+    """
     llm: LLMClient = GroqClient()
     aggregator = SourceAggregator([
         RedditSource(),
@@ -100,6 +113,7 @@ def compose() -> DailyPostBot:
 
 
 def main() -> None:
+    """Read command-line flags (or env vars) and start one run."""
     parser = argparse.ArgumentParser(description="Generate and post a LinkedIn update.")
     parser.add_argument(
         "--dry-run",

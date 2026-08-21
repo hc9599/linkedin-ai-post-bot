@@ -1,3 +1,9 @@
+"""
+Ask Groq (the AI) to write text.
+
+If the first model is gone (404), try the next one. That is why GitHub Actions
+used to die when Groq retired llama / qwen — both names were hardcoded.
+"""
 import time
 from typing import Protocol
 
@@ -6,6 +12,8 @@ from linkedin_bot.http import http_session
 
 
 class LLMClient(Protocol):
+    """Anything that can turn a prompt into a string. Groq is the real one today."""
+
     def complete(
         self,
         messages: list,
@@ -17,9 +25,7 @@ class LLMClient(Protocol):
 
 
 class GroqClient:
-    """
-    Groq chat adapter: model fallback, retries, family-specific reasoning_effort.
-    """
+    """Calls Groq's chat API. Tries models in order until one answers."""
 
     def __init__(self, api_key: str | None = None, models: list[str] | None = None):
         self._api_key = api_key
@@ -63,6 +69,7 @@ class GroqClient:
                         print(f"Groq: using model {model}")
                         return response.json()["choices"][0]["message"]["content"].strip()
 
+                    # 400/404 means "this model name is wrong" — skip to the next model.
                     if response.status_code in (400, 404):
                         print(
                             f"Groq model {model} rejected ({response.status_code}) — trying next model"
@@ -82,6 +89,12 @@ class GroqClient:
         return None
 
     def _reasoning_effort(self, model: str) -> str | None:
+        """
+        How hard the model should "think" before writing.
+
+        Groq is picky: Qwen wants none/default. GPT-OSS wants low/medium/high.
+        Sending the wrong word returns 400, so we pick per family.
+        """
         if "qwen" in model:
             return "none"
         if "gpt-oss" in model:

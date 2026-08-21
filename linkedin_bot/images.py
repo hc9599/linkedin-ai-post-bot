@@ -1,3 +1,9 @@
+"""
+Optional picture for the post.
+
+We ask Groq for a short image description, then Pollinations draws it.
+If either step fails, the LinkedIn post still goes out as text.
+"""
 import urllib.parse
 from typing import Protocol
 
@@ -6,12 +12,13 @@ from linkedin_bot.llm import LLMClient
 
 
 class ImageRenderer(Protocol):
+    """Anything that can turn an English prompt into image bytes."""
     def render(self, prompt: str) -> bytes | None:
         ...
 
 
 class PollinationsImageRenderer:
-    """Generates an image via Pollinations AI (free, no API key needed)."""
+    """Free image site. No API key. Can be slow or fail; that is OK."""
 
     def render(self, prompt: str) -> bytes | None:
         encoded = urllib.parse.quote(prompt)
@@ -37,6 +44,7 @@ class PollinationsImageRenderer:
 
 
 class ImageService:
+    """Ask the AI for a picture idea, then ask Pollinations to draw it."""
     def __init__(self, llm: LLMClient, renderer: ImageRenderer):
         self._llm = llm
         self._renderer = renderer

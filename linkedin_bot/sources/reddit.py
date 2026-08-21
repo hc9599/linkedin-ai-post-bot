@@ -1,3 +1,13 @@
+"""
+Reddit articles about C# and .NET.
+
+Reddit often blocks GitHub's cloud IPs. We try, in order:
+  1. Official RSS (looks like a browser)
+  2. The old.reddit HTML page
+  3. Arctic Shift (a public copy of Reddit posts, not behind Reddit's wall)
+
+Empty result from one path is fine — we try the next.
+"""
 from datetime import datetime
 import html as html_lib
 import re
@@ -170,11 +180,10 @@ def _fetch_subreddit(subreddit: str, sort: str, seen: set[str]) -> list[Candidat
 
 class RedditSource:
     """
-    Pulls posts from r/csharp and r/dotnet.
+    r/csharp and r/dotnet.
 
-    GitHub Actions datacenter IPs get 403 from Reddit JSON and often from
-    feedparser's bot UA. Fetch RSS ourselves with a browser UA (www first),
-    then old.reddit HTML, then Arctic Shift (no Reddit WAF).
+    Reddit often slams the door on GitHub's servers. We knock a few different
+    doors (RSS, old HTML, Arctic Shift copy) until one opens.
     """
 
     def fetch(self) -> list[CandidatePost]:

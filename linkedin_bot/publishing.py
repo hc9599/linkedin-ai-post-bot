@@ -1,3 +1,9 @@
+"""
+Post the finished text (and maybe a picture) to LinkedIn.
+
+Needs LINKEDIN_TOKEN and LINKEDIN_PERSON_ID in the environment.
+If the picture upload fails, we still post the text so the day is not wasted.
+"""
 from typing import Protocol
 
 from linkedin_bot.config import linkedin_credentials
@@ -5,11 +11,13 @@ from linkedin_bot.http import request_write_with_retry
 
 
 class Publisher(Protocol):
+    """A place we can publish. LinkedIn is the only one right now."""
     def publish(self, content: str, image_bytes: bytes | None = None):
         ...
 
 
 class LinkedInPublisher:
+    """Talks to LinkedIn's API. Timeouts + retries so GitHub Actions does not hang forever."""
     def publish(self, content: str, image_bytes: bytes | None = None):
         token, person_id = linkedin_credentials()
         url = "https://api.linkedin.com/v2/ugcPosts"

@@ -1,5 +1,7 @@
 # ---------------------------------------------------------------
-# TOPIC ANGLES: rotate daily across different .NET/C# dimensions
+# Writing style for the AI.
+# These are not code — they are instructions mixed into the prompt.
+# Each weekday gets a different angle so Monday does not sound like Friday.
 # ---------------------------------------------------------------
 TOPIC_ANGLES = {
     0: {  # Monday — language & runtime

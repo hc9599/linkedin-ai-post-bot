@@ -1,3 +1,8 @@
+"""
+Official Microsoft .NET blog.
+
+RSS first, Atom if RSS is empty. Same retry helper as the other sites.
+"""
 import re
 
 from linkedin_bot.http import fetch_feed_entries
@@ -10,7 +15,7 @@ FEED_URLS = [
 
 
 class MicrosoftBlogSource:
-    """Pulls latest posts from the official Microsoft .NET Dev Blog RSS feed."""
+    """Microsoft's own .NET blog RSS. Official news, no upvotes."""
 
     def fetch(self) -> list[CandidatePost]:
         print("Fetching .NET Dev Blog RSS...")

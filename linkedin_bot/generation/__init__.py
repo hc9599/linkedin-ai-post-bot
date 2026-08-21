@@ -1,3 +1,9 @@
+"""
+Turn a pile of articles into a LinkedIn draft, then a second-pass edit.
+
+draft()   = creative write
+critique() = "did this fail any of our quality checks?" rewrite
+"""
 from datetime import datetime
 import random
 
@@ -17,12 +23,13 @@ from linkedin_bot.models import CandidatePost
 
 
 class PostGenerator:
-    """Two-pass generation: draft, then self-critique rewrite."""
+    """Asks Groq to write, then asks Groq to fact-check the vibe of the draft."""
 
     def __init__(self, llm: LLMClient):
         self._llm = llm
 
     def draft(self, posts: list[CandidatePost]) -> str:
+        """First pass: pick one article and write a LinkedIn post in the daily style."""
         today = datetime.now().strftime("%A, %B %d")
         weekday = datetime.now().weekday()
 
@@ -133,6 +140,7 @@ BANNED PHRASES — do not use any of these:
         return result
 
     def critique(self, draft: str) -> str:
+        """Second pass: fix generic openers, filler, fake stats. Keep draft if AI chokes."""
         critique_prompt = f"""You are editing a LinkedIn post draft for a senior C#/.NET developer. \
 Your job is to check it against the six failure modes below and rewrite only what fails. \
 If a section passes, keep it exactly as written.

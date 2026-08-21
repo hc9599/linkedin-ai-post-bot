@@ -1,3 +1,10 @@
+"""
+News sites the bot reads.
+
+Each website has its own class with a fetch() method.
+The mixer (SourceAggregator) takes a couple of articles from each so the AI
+has a mixed menu, not 6 posts from one site.
+"""
 import random
 import re
 from typing import Protocol
@@ -6,15 +13,18 @@ from linkedin_bot.models import CandidatePost
 
 
 class PostSource(Protocol):
+    """A website we can ask: "give me recent C# / .NET articles." """
+
     def fetch(self) -> list[CandidatePost]:
         ...
 
 
 class SourceAggregator:
     """
-    Mixes Strategy sources: take a pool from each, pick per_source, shuffle, slice.
+    Mix articles from every source.
 
-    Preserves original fetch_posts selection: unused title-dedupe then combined[:final_count].
+    Takes up to 2 from each site, shuffles, then keeps 6.
+    If a site is blocked and returns nothing, we backfill from whatever we got.
     """
 
     def __init__(

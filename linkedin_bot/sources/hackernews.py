@@ -1,3 +1,8 @@
+"""
+Hacker News via Algolia's public search.
+
+No login needed. We search a few C#/.NET phrases, then drop off-topic hits.
+"""
 from datetime import datetime
 import time
 
@@ -7,7 +12,7 @@ from linkedin_bot.sources.relevance import is_dotnet_relevant
 
 
 class HackerNewsSource:
-    """Pulls .NET/C# stories from HackerNews via Algolia's public search API."""
+    """Search HN for C# / .NET stories from the last week (two weeks on weekends)."""
 
     def fetch(self) -> list[CandidatePost]:
         queries = ["dotnet", "csharp", "asp.net", "csharp performance", "dotnet architecture"]

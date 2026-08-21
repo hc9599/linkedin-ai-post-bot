@@ -1,7 +1,20 @@
+# Daily LinkedIn Post
+#
+# This file is the alarm clock. GitHub runs it on weekdays (or when you click
+# "Run workflow"). It installs Python, waits a random bit so the post is not
+# always at the same minute, then starts script.py.
+#
+# Secrets live in the GitHub repo settings, not in this file:
+#   GROQ_API_KEY, LINKEDIN_TOKEN, LINKEDIN_PERSON_ID
+#
+# This workflow does not merge anything. It only runs the bot.
+
 name: Daily LinkedIn Post
 on:
+  # Weekdays around 03:30 UTC, plus a random extra wait in the job below.
   schedule:
     - cron: 30 3 * * 1-5
+  # Let you click Run workflow in the Actions tab without waiting for the cron.
   workflow_dispatch:
 
 jobs:

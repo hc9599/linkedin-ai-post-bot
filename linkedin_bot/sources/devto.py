@@ -1,3 +1,9 @@
+"""
+dev.to articles tagged csharp / dotnet.
+
+The list API is free. For each article we also try to pull the body so the
+AI has a real detail to mention, not just the title.
+"""
 import re
 import time
 
@@ -40,7 +46,7 @@ def fetch_devto_article_body(url: str) -> str:
 
 
 class DevToSource:
-    """Pulls recent articles from dev.to tagged 'dotnet' and 'csharp'."""
+    """Read recent csharp and dotnet posts on dev.to. Dedupes titles that appear under both tags."""
 
     def fetch(self) -> list[CandidatePost]:
         tags = ["dotnet", "csharp"]
