@@ -11,8 +11,10 @@ It is meant to run on **GitHub Actions**. You can also run it on your laptop fir
 3. Asks Groq (an AI service) to write a LinkedIn post about one of them.
 4. Asks Groq again to clean up generic fluff.
 5. Strips markdown, emojis, and leftover "thinking" notes.
-6. Optionally draws a picture.
-7. Posts to LinkedIn — unless you used dry-run.
+6. Double-checks the post is actually about C# / .NET and matches the source article. If not, it **does not publish**.
+7. Adds a Source line with the article title, site, and URL so readers can see where the take came from.
+8. Optionally draws a picture.
+9. Posts to LinkedIn — unless you used dry-run.
 
 If one news site blocks GitHub's servers, the bot retries and tries a backup URL. The job should not die just because Reddit said 403.
 
@@ -24,7 +26,7 @@ If one news site blocks GitHub's servers, the bot retries and tries a backup URL
 | `linkedin_bot/` | The actual bot. |
 | `linkedin_bot/sources/` | Websites we read. |
 | `linkedin_bot/generation/` | How the AI is asked to write. |
-| `linkedin_bot/http.py` | Careful downloads with retries (needed on Actions). |
+| `linkedin_bot/review.py` | Last check: credit the article, skip publish if it is not C#/.NET. |
 | `.github/workflows/bot.yml` | The weekday timer. |
 
 ## Secrets (GitHub repo → Settings → Secrets and variables → Actions)

@@ -1,0 +1,159 @@
+"""
+Last look before LinkedIn.
+
+Two jobs:
+  1. Name the article we are talking about (title + link) on the post.
+  2. Stop the send if the post is not really about C# / .NET.
+
+Better to skip a day than publish a random off-topic take.
+"""
+import re
+
+from linkedin_bot.config import HASHTAGS
+from linkedin_bot.llm import LLMClient
+from linkedin_bot.models import CandidatePost
+from linkedin_bot.sources.relevance import is_dotnet_relevant
+
+
+def extract_topic_title(text: str) -> str | None:
+    """Read the TOPIC: line the writer puts at the top. That is which article it picked."""
+    match = re.search(r"^TOPIC:\s*(.+)$", text, flags=re.IGNORECASE | re.MULTILINE)
+    if not match:
+        return None
+    title = match.group(1).strip()
+    return title or None
+
+
+def _norm(value: str) -> str:
+    return re.sub(r"[^a-z0-9\s]", "", value.lower()).strip()
+
+
+def match_source(topic_title: str | None, posts: list[CandidatePost], body: str) -> CandidatePost | None:
+    """
+    Find the article the AI used.
+
+    First try the TOPIC: headline. If that is missing, see if a candidate title
+    shows up in the post body.
+    """
+    if topic_title:
+        want = _norm(topic_title)
+        for post in posts:
+            got = _norm(post.title)
+            if not got:
+                continue
+            if want == got or want in got or got in want:
+                return post
+
+    body_norm = _norm(body)
+    for post in posts:
+        got = _norm(post.title)
+        if got and len(got) >= 12 and got in body_norm:
+            return post
+    return None
+
+
+def _body_without_hashtags(text: str) -> str:
+    body = text
+    for tag in HASHTAGS:
+        body = body.replace(tag, "")
+    return body.strip()
+
+
+def attach_source_credit(text: str, source: CandidatePost) -> str:
+    """
+    Stick the article name and URL on the post, just above the hashtags.
+
+    We do this in code so the AI cannot "forget" to credit the piece.
+    """
+    lines = text.strip().splitlines()
+    hashtag_line = ""
+    if lines and lines[-1].strip().startswith("#"):
+        hashtag_line = lines[-1].strip()
+        body = "\n".join(lines[:-1]).strip()
+    else:
+        body = text.strip()
+
+    credit = f"Source: {source.title} ({source.source})\n{source.link}"
+    if hashtag_line:
+        return f"{body}\n\n{credit}\n\n{hashtag_line}"
+    return f"{body}\n\n{credit}"
+
+
+def llm_dotnet_source_check(
+    llm: LLMClient,
+    post_text: str,
+    source: CandidatePost,
+) -> tuple[bool, str]:
+    """
+    Ask Groq: is this post actually C#/.NET, and is it about this article?
+
+    Answer must start with PASS or FAIL. If Groq is silent, we do not publish.
+    """
+    prompt = f"""You are a last-chance checker before a LinkedIn post goes live.
+
+The post MUST be about C# and/or .NET (the language, runtime, libraries, tooling, or ecosystem).
+The views in the post MUST relate to the source article below. Not a random tech rant.
+
+SOURCE SITE: {source.source}
+SOURCE TITLE: {source.title}
+SOURCE LINK: {source.link}
+SOURCE SUMMARY:
+{source.summary}
+
+LINKEDIN POST:
+{post_text}
+
+Reply with exactly one line:
+PASS
+or
+FAIL: <short reason in plain English>
+
+PASS only if both are true:
+1. A C# or .NET developer would recognise this as their world.
+2. A reader can tell the take was sparked by that source article.
+"""
+    result = llm.complete(
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.0,
+        max_tokens=80,
+    )
+    if not result:
+        return False, "checker did not answer — not publishing"
+
+    line = result.strip().splitlines()[0].strip()
+    if line.upper().startswith("PASS"):
+        return True, line
+    return False, line
+
+
+def review_before_publish(
+    llm: LLMClient,
+    draft_with_topic: str,
+    cleaned_post: str,
+    candidates: list[CandidatePost],
+) -> tuple[CandidatePost | None, str | None]:
+    """
+    Double-check before LinkedIn.
+
+    Returns (source article, None) if OK to post.
+    Returns (None, reason) if we should skip publishing.
+    """
+    topic = extract_topic_title(draft_with_topic)
+    source = match_source(topic, candidates, cleaned_post)
+    if source is None:
+        return None, "could not match the post to a source article — not publishing"
+
+    body = _body_without_hashtags(cleaned_post)
+    keyword_ok = is_dotnet_relevant(body, source.title + " " + source.summary)
+    if not keyword_ok:
+        print(
+            "Review: post body has no obvious C#/.NET words. "
+            "Still asking the AI checker."
+        )
+
+    ok, detail = llm_dotnet_source_check(llm, cleaned_post, source)
+    print(f"Review checker: {detail}")
+    if not ok:
+        return None, f"C#/.NET or source check failed: {detail}"
+
+    return source, None

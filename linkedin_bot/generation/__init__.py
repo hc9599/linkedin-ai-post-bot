@@ -34,7 +34,7 @@ class PostGenerator:
         weekday = datetime.now().weekday()
 
         posts_text = "\n\n".join([
-            f"[{p.source}] {p.title} ({p.reactions} reactions)\n{p.summary}"
+            f"[{p.source}] {p.title} ({p.reactions} reactions)\n{p.link}\n{p.summary}"
             for p in posts
         ])
 
@@ -72,9 +72,14 @@ AUDIENCE SIGNAL FOR TODAY:
 ---
 
 ARTICLE SELECTION:
-Choose ONE article from the list below that best fits today's angle. Read the summary carefully. \
+Choose ONE article from the list below that is clearly about C# or .NET \
+(language, runtime, libraries, tooling, or the .NET ecosystem). \
+If an article is only loosely related, skip it. \
+Read the summary carefully. \
 The post MUST reference at least one specific technical detail or concrete fact from the summary — \
 not just the title. A post that could have been written from the title alone fails this test.
+
+Keep the TOPIC line exact — we use it later to attach the source link to the LinkedIn post.
 
 {posts_text}
 
