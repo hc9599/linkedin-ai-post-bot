@@ -126,6 +126,7 @@ def llm_dotnet_source_check(
 
 The post MUST be about C# and/or .NET (the language, runtime, libraries, tooling, or ecosystem).
 The views in the post MUST relate to the source article below. Not a random tech rant.
+A trending-news or daily-life analogy is allowed as the opener. That is not the topic.
 
 SOURCE SITE: {source.source}
 SOURCE TITLE: {source.title}
@@ -142,10 +143,12 @@ or
 FAIL: <short reason in plain English>
 
 PASS only if all are true:
-1. A C# or .NET developer would recognise this as their world.
+1. A C# or .NET developer would recognise this as their world (a news or daily-life analogy is fine).
 2. A reader can tell the take was sparked by that source article (a riff/opinion is enough; \
 it does not need to summarise the article).
 3. The post does not claim the author built or wrote the thing described in the source.
+4. The post is not only a news recap with no C#/.NET point.
+5. The post does not joke about crime, death, disaster, or communal violence.
 """
     result = llm.complete(
         messages=[{"role": "user", "content": prompt}],

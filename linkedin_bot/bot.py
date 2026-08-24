@@ -10,6 +10,7 @@ from datetime import datetime
 from linkedin_bot.cleaning import default_cleaning_pipeline, strip_think_blocks, CleaningPipeline
 from linkedin_bot.config import env_flag
 from linkedin_bot.generation import PostGenerator
+from linkedin_bot.hooks.world import fetch_world_hooks
 from linkedin_bot.images import ImageService, PollinationsImageRenderer
 from linkedin_bot.llm import GroqClient, LLMClient
 from linkedin_bot.publishing import LinkedInPublisher, Publisher
@@ -51,8 +52,10 @@ class DailyPostBot:
             print("No posts fetched, exiting.")
             return
 
+        hooks = fetch_world_hooks()
+
         print("\nGenerating LinkedIn post (first pass)...")
-        linkedin_content = self._generator.draft(posts)
+        linkedin_content = self._generator.draft(posts, hooks)
 
         # Models sometimes dump private "thinking" text. Strip it before editing.
         linkedin_content = strip_think_blocks(linkedin_content)

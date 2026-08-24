@@ -24,6 +24,10 @@ _AI_TELL_WARN = [
     r"\bwhen it comes to\b",
     r"\bin today's\b",
     r"\bgame-?changer\b",
+    r"\bas an indian developer\b",
+    r"\bin the indian context\b",
+    r"\bin the current climate\b",
+    r"\bin today's climate\b",
 ]
 
 

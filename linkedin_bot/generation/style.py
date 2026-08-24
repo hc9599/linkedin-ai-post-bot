@@ -14,7 +14,10 @@ TOPIC_ANGLES = {
             "Write for other C# developers. A hiring manager might lurk, but do not explain "
             "the industry to them. If a peer would skip the paragraph, cut it."
         ),
-        "avoid": "Do not recap the article. React: what you would try, skip, or argue with.",
+        "avoid": (
+            "Do not recap the article. React: what you would try, skip, or argue with. "
+            "Land it through a trending topic or daily-life analogy."
+        ),
     },
     1: {  # Tuesday — tooling & developer experience
         "focus": (
@@ -24,7 +27,10 @@ TOPIC_ANGLES = {
         "audience_signal": (
             "Sound like you tried the tool, or you know why you still will not. Peers, not a review site."
         ),
-        "avoid": "Do not write a product review or a feature walkthrough. Your workflow take only.",
+        "avoid": (
+            "Do not write a product review or a feature walkthrough. Your workflow take only. "
+            "Land it through a trending topic or daily-life analogy."
+        ),
     },
     2: {  # Wednesday — architecture & engineering decisions
         "focus": (
@@ -34,7 +40,10 @@ TOPIC_ANGLES = {
         "audience_signal": (
             "Another senior should want to agree or argue. Vague 'think about tradeoffs' is a fail."
         ),
-        "avoid": "No architecture poetry. No blog rewrite. One named tension and your side of it.",
+        "avoid": (
+            "No architecture poetry. No blog rewrite. One named tension and your side of it. "
+            "Land it through a trending topic or daily-life analogy."
+        ),
     },
     3: {  # Thursday — C# positioning & career perspective
         "focus": (
@@ -44,7 +53,10 @@ TOPIC_ANGLES = {
         "audience_signal": (
             "A take someone can disagree with. Cheerleading 'C# is great' is a fail."
         ),
-        "avoid": "Do not summarise the piece. Take a side on adoption, competition, or direction.",
+        "avoid": (
+            "Do not summarise the piece. Take a side on adoption, competition, or direction. "
+            "Land it through a trending topic or daily-life analogy."
+        ),
     },
     4: {  # Friday — enterprise & infrastructure
         "focus": (
@@ -56,7 +68,8 @@ TOPIC_ANGLES = {
         ),
         "avoid": (
             "Do not reference NAS, SMB, or internal product details. Do not paste the article. "
-            "Keep it any senior .NET backend person could own."
+            "Keep it any senior .NET backend person could own. "
+            "Land it through a trending topic or daily-life analogy."
         ),
     },
     5: {  # Saturday — performance & internals
@@ -67,7 +80,10 @@ TOPIC_ANGLES = {
         "audience_signal": (
             "Show you have been bitten by allocations or pauses. Abstract 'performance matters' is a fail."
         ),
-        "avoid": "Do not lecture the concept from the article. Say what you would measure or change.",
+        "avoid": (
+            "Do not lecture the concept from the article. Say what you would measure or change. "
+            "Land it through a trending topic or daily-life analogy."
+        ),
     },
     6: {  # Sunday — new releases & future direction
         "focus": (
@@ -77,7 +93,10 @@ TOPIC_ANGLES = {
         "audience_signal": (
             "A useful opinion on the roadmap. Reciting release notes is a fail."
         ),
-        "avoid": "Do not write a changelog. Filter it: try, skip, or wait — and why.",
+        "avoid": (
+            "Do not write a changelog. Filter it: try, skip, or wait - and why. "
+            "Land it through a trending topic or daily-life analogy."
+        ),
     },
 }
 
@@ -205,6 +224,10 @@ BANNED_PHRASES = [
     "enables you to",
     "enables developers",
     "you can now",
+    "as an Indian developer",
+    "in the Indian context",
+    "in the current climate",
+    "in today's climate",
 ]
 
 # ---------------------------------------------------------------
@@ -235,6 +258,9 @@ BANNED_OPENERS = [
     "Any opener that defines a problem for 'the industry' instead of a thing you actually touch",
     "Any opener that makes a generic observation applying to all software development",
     "Any opener that starts explaining the article's product as if you shipped it",
+    "As an Indian developer...",
+    "In the Indian context...",
+    "In today's climate...",
 ]
 
 # ---------------------------------------------------------------
@@ -242,23 +268,24 @@ BANNED_OPENERS = [
 # ---------------------------------------------------------------
 OPENERS = [
     (
-        "Open on YOUR pain or take, not a product recap. Named thing you touch "
-        "(MSBuild, binlogs, Convert.ChangeType). Slack energy, not a whitepaper."
+        "Open on a trending headline or a daily-life scene (match group chat, Friday deploy, "
+        "cold coffee, standup). Then land the .NET take. Slack energy, not a whitepaper."
     ),
     (
-        "Open with a concrete annoyance. Then one short nod to what you saw today. "
-        "Opinion first. Article second. No 'most teams'."
+        "Open with a headline jab ONLY if the analogy is obvious. Otherwise a routine. "
+        "Two sentences max for the hook. Then your view. No 'most teams'."
     ),
     (
-        "Open mid-thought: 'We've had X for years. Nobody uses it because Y.' "
-        "The article is the spark, not the script."
+        "Open mid-thought on daily life: 'Unread group chat energy.' Then name the tool "
+        "(MSBuild, binlogs, Convert.ChangeType) and your take."
     ),
     (
-        "Open with what you would try or skip. Do not explain the article's feature list."
+        "Open with what you would try or skip, tied to a daily annoyance or a news beat. "
+        "Do not explain the article's feature list."
     ),
     (
-        "Open with a hook a .NET person would smirk at (flaky CI, giant logs, Copilot "
-        "narrating XML). Then land the actual take. Two sentences max for the hook."
+        "Open with a hook a .NET person would smirk at "
+        "(Friday deploy, power flicker at 99%, muted match tab). Then the actual take."
     ),
 ]
 
@@ -267,21 +294,23 @@ OPENERS = [
 # ---------------------------------------------------------------
 ENDINGS = [
     (
+        "End with a specific conversation starter "
+        "('Anyone else's CI still feel like a Friday deploy?'). "
+        "No 'what are your thoughts?' No 'curious to hear'."
+    ),
+    (
         "End with what YOU will do next (try it, ignore it, wait for GA). "
-        "No 'what are your thoughts?' Do not recap the product again."
+        "Do not recap the product again."
     ),
     (
         "End with one blunt take of yours. No moral. No 'this matters because teams'."
     ),
     (
-        "End with one check a .NET person can run this week. One sentence. Yours, not the article's CTA."
-    ),
-    (
-        "End with a small doubt or limit ('not magic', 'still have to read the task output'). "
+        "End with a small doubt ('not magic', 'still have to read the task output'). "
         "Humans hedge. Do not write a TED closer."
     ),
     (
-        "If humor is on, end on a dry line. If humor is off, just stop after the take."
+        "If humor is on, end on a dry line. If humor is off, stop after the take."
     ),
 ]
 
@@ -290,20 +319,23 @@ ENDINGS = [
 # ---------------------------------------------------------------
 FORMATS = [
     (
-        "LinkedIn-native: 3 or 4 short paragraphs, 1-2 sentences each, blank line between. "
-        "At most ONE sentence restates a fact from the article. The rest is your view."
+        "Looks like a chat, not a blog. 3 or 4 short paragraphs, 1-2 sentences each, "
+        "blank line between. Trending or daily-life hook first. At most ONE sentence "
+        "restates a fact from the article. The rest is your view."
     ),
     (
-        "Hook line (your take or a witty jab, own paragraph). One sentence of spark from the "
-        "article. Then your argument. Then a one-line closer. No wall of text."
+        "Hook line (headline jab or daily-life scene, own paragraph). One sentence of spark "
+        "from the article. Then your argument. Then a one-line conversation starter. "
+        "No wall of text."
     ),
     (
-        "Four to seven short lines. Line breaks like a human on LinkedIn. "
-        "Do not walk through the article beat by beat. No bullets. No numbered list."
+        "Four to seven short lines. Mix a 4-word line with a longer one. Line breaks "
+        "like a human on LinkedIn. Do not walk through the article. No bullets."
     ),
     (
-        "Two short paragraphs only. First: your situation or hot take. Second: how that article "
-        "fits — try / skip / argue — in your words. Uneven sentence length."
+        "Two short paragraphs only. First: the trending or daily-life situation. "
+        "Second: how that article fits - try / skip / argue - in your words. "
+        "Uneven sentence length."
     ),
 ]
 
@@ -332,9 +364,10 @@ WIT_MODES = [
     {
         "name": "witty",
         "instruction": (
-            "Be funny enough that a C# person stops scrolling. One hook or aside with bite "
-            "(flaky CI, 2GB logs, Copilot narrating XML, Convert.ChangeType betraying you). "
-            "Then a real viewpoint. Not cringe LinkedIn. Not 'who's with me'. Not mean."
+            "Be funny enough that a C# person stops scrolling. "
+            "One hook with bite (Friday deploy, unread match chat, "
+            "power flicker at 99%, Copilot narrating XML). Then a real viewpoint. "
+            "Not cringe LinkedIn. Not 'who's with me'. Not mean."
         ),
     },
 ]
