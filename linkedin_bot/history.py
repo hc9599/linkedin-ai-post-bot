@@ -138,6 +138,10 @@ class PostHistory:
             return False
         return any(_norm(old) == want or want in _norm(old) or _norm(old) in want for old in self.recent_topics())
 
+    def unused_articles(self, posts: list) -> list:
+        """Articles we have not already written about."""
+        return [post for post in posts if not self.reused_topic(getattr(post, "title", ""))]
+
     def drop_used_articles(self, posts: list) -> list:
         """Drop articles we already wrote about, if enough unused ones remain."""
         unused = [post for post in posts if not self.reused_topic(getattr(post, "title", ""))]

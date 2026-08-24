@@ -6,22 +6,22 @@ it asks helpers to do each step.
 """
 import argparse
 from datetime import datetime
+import random
 import re
 
 from linkedin_bot.cleaning import default_cleaning_pipeline, strip_think_blocks, CleaningPipeline
 from linkedin_bot.config import env_flag
-from linkedin_bot.generation import PostGenerator
+from linkedin_bot.generation import SAMPLE_COUNT, PostGenerator
 from linkedin_bot.history import PostHistory
 from linkedin_bot.hooks.world import fetch_world_hooks
 from linkedin_bot.review import attach_source_credit, extract_topic_title, review_before_publish
 from linkedin_bot.images import ImageService, PollinationsImageRenderer
 from linkedin_bot.llm import GroqClient, LLMClient
+from linkedin_bot.models import CandidatePost
 from linkedin_bot.publishing import LinkedInPublisher, Publisher
-from linkedin_bot.sources import SourceAggregator
 from linkedin_bot.sources.devto import DevToSource
 from linkedin_bot.sources.hackernews import HackerNewsSource
 from linkedin_bot.sources.microsoft_blog import MicrosoftBlogSource
-from linkedin_bot.sources.reddit import RedditSource
 from linkedin_bot.sources.rss_feeds import InfoQDotNetSource, JetBrainsDotNetSource, LobstersSource
 
 _TRIVIA_TITLE = re.compile(r"^(did you know\??|ever wondered)\b", re.IGNORECASE)
@@ -33,19 +33,54 @@ def _is_trivia_title(title: str) -> bool:
     return bool(_TRIVIA_TITLE.match(stripped)) or len(stripped) > 180
 
 
+def _weekday_sources() -> list:
+    """
+    One feed per weekday. Monday starts at DevTo, then rotate.
+    Reddit stays out — it is slow and often blocked on Actions.
+    """
+    roster = [
+        DevToSource(),
+        MicrosoftBlogSource(),
+        InfoQDotNetSource(),
+        JetBrainsDotNetSource(),
+        LobstersSource(),
+        HackerNewsSource(),
+    ]
+    start = datetime.now().weekday() % len(roster)
+    return roster[start:] + roster[:start]
+
+
+def pick_one_article(history: PostHistory) -> CandidatePost | None:
+    """Fetch one weekday source. If every article there is used, try the next source."""
+    for source in _weekday_sources():
+        name = type(source).__name__.replace("Source", "")
+        print(f"Fetching one source ({name})...")
+        posts = source.fetch()
+        unused = [
+            post for post in history.unused_articles(posts)
+            if not _is_trivia_title(post.title)
+        ]
+        if not unused:
+            print(f"  {name}: no unused articles — next source")
+            continue
+        article = random.choice(unused)
+        print(f"  Picked: {article.title}")
+        print(f"  Link: {article.link}")
+        return article
+    return None
+
+
 class DailyPostBot:
     """Runs one full LinkedIn post from start to finish."""
 
     def __init__(
         self,
-        aggregator: SourceAggregator,
         generator: PostGenerator,
         cleaner: CleaningPipeline,
         publisher: Publisher,
         image_service: ImageService,
         llm: LLMClient,
     ):
-        self._aggregator = aggregator
         self._generator = generator
         self._cleaner = cleaner
         self._publisher = publisher
@@ -56,25 +91,16 @@ class DailyPostBot:
         if dry_run:
             print("*** DRY RUN MODE — post will NOT be published to LinkedIn ***\n")
 
-        print("Fetching posts from Reddit, dev.to, and .NET Dev Blog...")
-        posts = self._aggregator.fetch()
-
-        if not posts:
-            print("No posts fetched, exiting.")
+        history = PostHistory().load()
+        article = pick_one_article(history)
+        if article is None:
+            print("No unused article found, exiting.")
             return
 
-        history = PostHistory().load()
-        hooks = fetch_world_hooks(history=history)
-        usable = [post for post in posts if not _is_trivia_title(post.title)]
-        if len(usable) < 3:
-            usable = posts
-        else:
-            dropped = len(posts) - len(usable)
-            if dropped:
-                print(f"Dropped {dropped} trivia article(s)")
-        posts = history.drop_used_articles(usable)
+        posts = [article]
+        hooks = fetch_world_hooks(history=history, headline_limit=0)
 
-        print("\nGenerating 5 sample posts...")
+        print(f"\nDrafting {SAMPLE_COUNT} takes on one article...")
         samples, wits = self._generator.draft_samples(posts, hooks, history=history)
         winner = self._generator.pick_best(samples)
         self._generator._wit_mode = wits[winner]
@@ -162,17 +188,7 @@ def compose() -> DailyPostBot:
     Swap a source here (add another website) without rewriting the rest of the bot.
     """
     llm: LLMClient = GroqClient()
-    aggregator = SourceAggregator([
-        RedditSource(),
-        DevToSource(),
-        MicrosoftBlogSource(),
-        HackerNewsSource(),
-        LobstersSource(),
-        InfoQDotNetSource(),
-        JetBrainsDotNetSource(),
-    ])
     return DailyPostBot(
-        aggregator=aggregator,
         generator=PostGenerator(llm),
         cleaner=default_cleaning_pipeline(),
         publisher=LinkedInPublisher(),

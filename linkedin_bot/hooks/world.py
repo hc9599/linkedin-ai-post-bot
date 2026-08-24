@@ -238,26 +238,28 @@ def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2, histor
     Live world/tech/sport headlines if a feed works and topics are safe.
     Mix today's weekday life scenes with any-day life scenes. Shuffle so hooks stay random.
     """
-    print("Fetching trending hooks (headlines + daily life)...")
+    print("Fetching daily-life hooks...")
     collected: list[WorldHeadline] = []
     seen: set[str] = set()
-    per_feed = max(2, headline_limit // 2)
-
-    for url in FEED_URLS:
-        for item in _headlines_from_feed(url, per_feed):
-            key = re.sub(r"[^a-z0-9]+", "", item.title.lower())
-            if key in seen:
-                continue
-            seen.add(key)
-            collected.append(item)
-        if len(collected) >= headline_limit:
-            break
-
-    headlines = collected[:headline_limit]
-    if headlines:
-        print(f"  Headlines kept: {len(headlines)}")
+    headlines: list[WorldHeadline] = []
+    if headline_limit <= 0:
+        print("  Headlines: skipped")
     else:
-        print("  Headlines: none usable (feeds empty or all filtered)")
+        per_feed = max(2, headline_limit // 2)
+        for url in FEED_URLS:
+            for item in _headlines_from_feed(url, per_feed):
+                key = re.sub(r"[^a-z0-9]+", "", item.title.lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                collected.append(item)
+            if len(collected) >= headline_limit:
+                break
+        headlines = collected[:headline_limit]
+        if headlines:
+            print(f"  Headlines kept: {len(headlines)}")
+        else:
+            print("  Headlines: none usable (feeds empty or all filtered)")
 
     now = datetime.now()
     weekday = now.weekday()

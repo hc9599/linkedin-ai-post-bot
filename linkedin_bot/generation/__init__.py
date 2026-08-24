@@ -25,7 +25,7 @@ from linkedin_bot.hooks.world import WorldHookSet, current_day_context
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
 
-SAMPLE_COUNT = 5
+SAMPLE_COUNT = 3
 _WINNER_RE = re.compile(r"WINNER:\s*(\d+)", re.IGNORECASE)
 _SAMPLE_RE = re.compile(r"\b(?:sample|winner)\s*[:#-]?\s*(\d+)\b", re.IGNORECASE)
 _WEEKDAY_NAMES = (
@@ -301,22 +301,19 @@ TODAY'S ANGLE:
 
 ---
 
-ARTICLE SELECTION:
-Choose ONE article from the list below that is clearly about C# or .NET \
-(language, runtime, libraries, tooling, or the .NET ecosystem). \
-If an article is only loosely related, skip it. \
-Skip trivia or "Did you know" language-history posts. \
-Read the summary. Steal ONE specific technical detail as proof you read it. \
+ARTICLE:
+Write about this article only. Do not pick a different one. Do not invent another topic.
+Read the summary. Steal ONE specific technical detail as proof you read it.
 Do not walk through the rest of the piece.
 
-Keep the TOPIC line exact — we use it later to attach the source link to the LinkedIn post.
+Keep the TOPIC line exact — we use it later to attach the source link.
 
 {posts_text}
 
 ---
 
-FIRST LINE: Write exactly: TOPIC: then paste the chosen article title character-for-character \
-from the list. Do not rewrite, market, or summarise the title.
+FIRST LINE: Write exactly: TOPIC: then paste the article title character-for-character.
+Do not rewrite, market, or summarise the title.
 Then write the post on a new line. Nothing else before the post.
 
 ---
