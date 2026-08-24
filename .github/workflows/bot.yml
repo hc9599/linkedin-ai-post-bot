@@ -56,7 +56,7 @@ jobs:
           LINKEDIN_PERSON_ID: ${{ secrets.LINKEDIN_PERSON_ID }}
           # Live LinkedIn post. Set to "true" to print only.
           DRY_RUN: "false"
-          IMAGE: "true"
+          IMAGE: "false"
         run: python -u script.py
 
       - name: Save post history

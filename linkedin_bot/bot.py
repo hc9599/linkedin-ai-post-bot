@@ -6,6 +6,7 @@ it asks helpers to do each step.
 """
 import argparse
 from datetime import datetime
+import re
 
 from linkedin_bot.cleaning import default_cleaning_pipeline, strip_think_blocks, CleaningPipeline
 from linkedin_bot.config import env_flag
@@ -22,6 +23,14 @@ from linkedin_bot.sources.hackernews import HackerNewsSource
 from linkedin_bot.sources.microsoft_blog import MicrosoftBlogSource
 from linkedin_bot.sources.reddit import RedditSource
 from linkedin_bot.sources.rss_feeds import InfoQDotNetSource, JetBrainsDotNetSource, LobstersSource
+
+_TRIVIA_TITLE = re.compile(r"^(did you know\??|ever wondered)\b", re.IGNORECASE)
+
+
+def _is_trivia_title(title: str) -> bool:
+    """Skip clickbait language-trivia posts. They make empty LinkedIn takes."""
+    stripped = (title or "").strip()
+    return bool(_TRIVIA_TITLE.match(stripped)) or len(stripped) > 180
 
 
 class DailyPostBot:
@@ -56,6 +65,14 @@ class DailyPostBot:
 
         hooks = fetch_world_hooks()
         history = PostHistory().load()
+        usable = [post for post in posts if not _is_trivia_title(post.title)]
+        if len(usable) < 3:
+            usable = posts
+        else:
+            dropped = len(posts) - len(usable)
+            if dropped:
+                print(f"Dropped {dropped} trivia article(s)")
+        posts = history.drop_used_articles(usable)
 
         print("\nGenerating 5 sample posts...")
         samples, wits = self._generator.draft_samples(posts, hooks, history=history)

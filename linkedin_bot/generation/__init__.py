@@ -109,7 +109,9 @@ def _score_sample(
     if history and history.reused_opener(text):
         score -= 5
     if history and history.reused_topic(_topic_line(text)):
-        score -= 2
+        score -= 10
+    if re.match(r"^\s*topic:\s*(did you know|ever wondered)\b", text, re.I):
+        score -= 8
     for other in sibling_openers or []:
         if other and opener_overlap(text, other) >= 0.55:
             score -= 2
@@ -301,6 +303,7 @@ ARTICLE SELECTION:
 Choose ONE article from the list below that is clearly about C# or .NET \
 (language, runtime, libraries, tooling, or the .NET ecosystem). \
 If an article is only loosely related, skip it. \
+Skip trivia or "Did you know" language-history posts. \
 Read the summary. Steal ONE specific technical detail as proof you read it. \
 Do not walk through the rest of the piece.
 
@@ -424,6 +427,7 @@ Score in this order:
 6. Weekday names must be {today_name} or none. No Friday-deploy unless Friday.
 7. FRESH OPENER: reject first lines that remix recent posts or open in the office.
 8. NO CLOCK TIMES: reject 10 am / 9:30 / any clock stamp.
+9. FRESH TOPIC: reject a draft whose TOPIC was already used. Reject trivia (Did you know / Ever wondered).
 
 Drafts:
 {packed}
@@ -440,20 +444,54 @@ REASON: <one short line>
         fallback = _heuristic_pick(samples, today_name, weekday, self._history)
         if not result:
             print("pick_best: Groq silent — using heuristic")
-            return fallback
+            return self._prefer_fresh_topic(samples, fallback, today_name, weekday)
 
         cleaned = strip_think_blocks(result)
         print(f"pick_best: {cleaned.strip()}")
         match = _WINNER_RE.search(cleaned) or _SAMPLE_RE.search(cleaned)
         if not match:
             print("pick_best: could not parse WINNER — using heuristic")
-            return fallback
+            return self._prefer_fresh_topic(samples, fallback, today_name, weekday)
 
         choice = int(match.group(1)) - 1
         if choice < 0 or choice >= len(samples) or not samples[choice].strip():
             print("pick_best: WINNER out of range — using heuristic")
-            return fallback
-        return choice
+            choice = fallback
+        return self._prefer_fresh_topic(samples, choice, today_name, weekday)
+
+    def _prefer_fresh_topic(
+        self,
+        samples: list[str],
+        preferred: int,
+        today_name: str,
+        weekday: int,
+    ) -> int:
+        """If the winner repeats a used article, take the next best unused one."""
+        history = self._history
+        if history is None or not history.reused_topic(_topic_line(samples[preferred])):
+            return preferred
+        titles = [_topic_line(sample) for sample in samples]
+        token_sets = [_title_tokens(title) for title in titles]
+        openers = [first_line(sample) for sample in samples]
+        ranked: list[tuple[int, int]] = []
+        for index, text in enumerate(samples):
+            siblings = [line for i, line in enumerate(openers) if i != index]
+            ranked.append((
+                _score_sample(
+                    text, titles, token_sets, index, today_name, weekday, history, siblings,
+                ),
+                index,
+            ))
+        ranked.sort(reverse=True)
+        for _score, index in ranked:
+            if not history.reused_topic(_topic_line(samples[index])):
+                print(
+                    f"pick_best: skipped reused topic on sample {preferred + 1}, "
+                    f"using sample {index + 1}"
+                )
+                return index
+        print("pick_best: every sample reused a topic — keeping original pick")
+        return preferred
 
     def critique(self, draft: str) -> str:
         """Second pass: fix generic openers, filler, fake stats. Keep draft if AI chokes."""

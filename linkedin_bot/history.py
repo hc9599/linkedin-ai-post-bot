@@ -122,6 +122,17 @@ class PostHistory:
             return False
         return any(_norm(old) == want or want in _norm(old) or _norm(old) in want for old in self.recent_topics())
 
+    def drop_used_articles(self, posts: list) -> list:
+        """Drop articles we already wrote about, if enough unused ones remain."""
+        unused = [post for post in posts if not self.reused_topic(getattr(post, "title", ""))]
+        dropped = len(posts) - len(unused)
+        if dropped and len(unused) >= 3:
+            print(f"History: dropped {dropped} already-used article(s), {len(unused)} left")
+            return unused
+        if dropped:
+            print(f"History: {dropped} reused article(s), but only {len(unused)} unused — keeping full list")
+        return posts
+
     def worn_opener_words(self) -> list[str]:
         """Words that showed up in 2+ recent first lines. Do not open with these again."""
         counts: dict[str, int] = {}
