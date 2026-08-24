@@ -31,6 +31,14 @@
       "opener": "Leftover pizza in the fridge, phone at 7\u202f% and the charger is in the other bag. .NET\u202f10 finally stopped echoing the same string inside\u202fState.Message when it writes JSON to the console. That extra copy was a tiny nuisance - more null checks, a messier schema, and it showed up in my log-parsers like a stray semicolon.",
       "source_link": "https://dev.to/ssukhpinder/net-10-json-console-logging-stop-parsing-statemessage-6p5",
       "dry_run": true
+    },
+    {
+      "date": "2026-08-24",
+      "weekday": "Monday",
+      "topic": "xUnit 4 ParallelMode.All: Protect Shared State from Test Races",
+      "opener": "Phone died on the commute, so I'm already a few steps behind the weekend's code-review backlog.",
+      "source_link": "https://dev.to/ssukhpinder/xunit-4-parallelmodeall-protect-shared-state-from-test-races-58jj",
+      "dry_run": false
     }
   ]
 }
