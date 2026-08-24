@@ -23,6 +23,14 @@
       "opener": "The first \"quick sync\" of the week turned into a fire drill when my inbox exploded with \"urgent\" tickets from the weekend, and the standup was still running in the background.",
       "source_link": "https://dev.to/ssukhpinder/net-10-dotnet-tool-exec-pin-the-version-and-feed-in-ci-2jgl",
       "dry_run": true
+    },
+    {
+      "date": "2026-08-24",
+      "weekday": "Monday",
+      "topic": ".NET 10 JSON Console Logging: Stop Parsing State.Message",
+      "opener": "Leftover pizza in the fridge, phone at 7\u202f% and the charger is in the other bag. .NET\u202f10 finally stopped echoing the same string inside\u202fState.Message when it writes JSON to the console. That extra copy was a tiny nuisance - more null checks, a messier schema, and it showed up in my log-parsers like a stray semicolon.",
+      "source_link": "https://dev.to/ssukhpinder/net-10-json-console-logging-stop-parsing-statemessage-6p5",
+      "dry_run": true
     }
   ]
 }
