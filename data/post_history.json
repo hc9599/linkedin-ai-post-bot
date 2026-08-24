@@ -39,6 +39,14 @@
       "opener": "Phone died on the commute, so I'm already a few steps behind the weekend's code-review backlog.",
       "source_link": "https://dev.to/ssukhpinder/xunit-4-parallelmodeall-protect-shared-state-from-test-races-58jj",
       "dry_run": false
+    },
+    {
+      "date": "2026-08-24",
+      "weekday": "Monday",
+      "topic": "ZeroTier Without Native. Managed ZtSharp and native VL1-only ZtLite for ESP32",
+      "opener": "I missed the bus this morning, watching it disappear down the block as the day began to feel like a lingering aftertaste from the weekend. I'm late, a bit behind, but I'm in my own rhythm, no office tour, no badge, just the hum of my apartment and the faint buzz of a morning routine that feels oddly free.",
+      "source_link": "",
+      "dry_run": true
     }
   ]
 }
