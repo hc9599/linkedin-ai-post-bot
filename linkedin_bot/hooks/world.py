@@ -5,6 +5,7 @@ Live headlines when a feed answers and the topic is safe to joke about.
 Daily-life scenes are the fallback if news is empty or nothing analogizes.
 """
 from dataclasses import dataclass
+from datetime import datetime
 import random
 import re
 
@@ -31,22 +32,47 @@ _UNSAFE = (
     "children under", "minors",
 )
 
-DAILY_LIFE = [
-    "Monday standup that should have been a message.",
+# Safe any day. No weekday names so we do not say Friday on a Monday.
+DAILY_LIFE_ANYDAY = [
     "Coffee going cold while the build sits on 'restore'.",
     "Unread group chat about last night's match. You keep it. You never open it.",
-    "Friday deploy energy. Everyone knows better. Someone still clicks.",
     "Airport Wi-Fi deciding your VPN is a suggestion.",
     "Power flicker right as the build hits 99%.",
     "Hybrid day: badge in, sit down, VPN dies.",
     "Office microwave queue longer than the PR review.",
-    "Weekend plan cancelled by a 'quick prod check' that is never quick.",
     "Slack huddle with IPL or the Premier League muted in another tab.",
     "Commute stretching a 20-minute hop into a standup from the cab.",
     "Calendar saying 'focus time' while pings keep landing.",
     "That one test that only fails on the pipeline.",
     "Leaving on time and still hitting the same traffic light twice.",
 ]
+
+# Only mix these in on that weekday.
+DAILY_LIFE_BY_WEEKDAY = {
+    0: [
+        "Monday standup that should have been a message.",
+        "Inbox from the weekend pretending it is urgent.",
+    ],
+    1: [
+        "Tuesday and the flaky test is already back.",
+    ],
+    2: [
+        "Wednesday midweek CI. This is where the red build likes to live.",
+    ],
+    3: [
+        "Thursday 'ship it tomorrow' pressure. Not tomorrow yet.",
+    ],
+    4: [
+        "Friday deploy energy. Everyone knows better. Someone still clicks.",
+        "Friday afternoon CI. Nobody wants to own the red build.",
+    ],
+    5: [
+        "Saturday and a 'quick prod check' that is never quick.",
+    ],
+    6: [
+        "Sunday evening already opening the work laptop.",
+    ],
+}
 
 
 @dataclass(frozen=True)
@@ -59,10 +85,16 @@ class WorldHeadline:
 class WorldHookSet:
     headlines: list[WorldHeadline]
     routines: list[str]
+    weekday_name: str
 
     def prompt_block(self) -> str:
         """Text the writer sees. Headlines optional. Routines always there."""
-        lines = ["TRENDING HOOKS (opener material, not the post topic):"]
+        lines = [
+            f"TODAY IS {self.weekday_name}.",
+            f"If you name a weekday, it must be {self.weekday_name}.",
+            "Friday-deploy / Friday roulette language is ONLY allowed on Friday.",
+            "TRENDING HOOKS (opener material, not the post topic):",
+        ]
         if self.headlines:
             lines.append("Today's usable headlines (use ONE only if the analogy is obvious):")
             for item in self.headlines:
@@ -139,11 +171,19 @@ def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2) -> Wor
     else:
         print("  Headlines: none usable (feeds empty or all filtered)")
 
-    routines = random.sample(DAILY_LIFE, k=min(routine_count, len(DAILY_LIFE)))
+    now = datetime.now()
+    weekday_name = now.strftime("%A")
+    pool = DAILY_LIFE_ANYDAY + DAILY_LIFE_BY_WEEKDAY.get(now.weekday(), [])
+    routines = random.sample(pool, k=min(routine_count, len(pool)))
+    print(f"  Today is {weekday_name}")
     print("  Daily-life scenes:")
     for scene in routines:
         print(f"    - {scene}")
     for item in headlines:
         print(f"    - headline: {item.title}")
 
-    return WorldHookSet(headlines=headlines, routines=routines)
+    return WorldHookSet(
+        headlines=headlines,
+        routines=routines,
+        weekday_name=weekday_name,
+    )

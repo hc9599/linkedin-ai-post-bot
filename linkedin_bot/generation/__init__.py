@@ -42,9 +42,12 @@ class PostGenerator:
             f"[{p.source}] {p.title} ({p.reactions} reactions)\n{p.link}\n{p.summary}"
             for p in posts
         ])
+        today_name = datetime.now().strftime("%A")
         hooks_text = hooks.prompt_block() if hooks else (
+            f"TODAY IS {today_name}. If you name a weekday, it must be {today_name}. "
+            "Friday-deploy language is ONLY allowed on Friday. "
             "TRENDING HOOKS: none fetched. Open on a daily-life scene "
-            "(standup, Friday deploy, unread match chat) without inventing a news event."
+            "(standup, unread match chat, cold coffee) without inventing a news event."
         )
 
         angle = TOPIC_ANGLES[weekday]
@@ -63,9 +66,18 @@ class PostGenerator:
         prompt = f"""Today is {today}. Ghostwrite a LinkedIn post as if YOU are a senior C#/.NET \
 developer posting from your own account. 5+ years backend.
 
-COWORKER TEST (main job): a teammate should think you typed this on your phone after \
-standup. Slack energy, slightly cleaned for LinkedIn. Not a newsletter. \
-Not thought leadership. Not ChatGPT.
+HUMAN FIRST (main job): this must look like a casual LinkedIn update a person typed \
+on their phone. Slack/WhatsApp energy. A teammate should not smell a template, \
+a recipe blog, or ChatGPT.
+
+CASUAL means: short. Uneven. A little messy. You are talking, not teaching. \
+Not "My new recipe". Not a 3-step how-to. Not "I've been doing X for a while, but".
+
+PLAIN ENGLISH: a smart person who does not write C# should still get the point. \
+If you name a command, flag, or API, add one short clause in normal words \
+("dotnet tool exec - run a tool once, don't install it forever"). \
+Do not dump --flags and package names with no translation. \
+Do not lecture. One gloss, then your take.
 
 JOB: open on a trending global topic or a daily-life scene (headline only if the \
 analogy is obvious). Then post YOUR viewpoint on ONE .NET article. You did not write \
@@ -78,7 +90,7 @@ VOICE:
 - Contractions required: don't, it's, I've, we're.
 - Uneven sentence length. Mix a 4-word line with a longer one. Short paragraphs. Blank lines.
 - Casual English. No lecture about a country or "the current climate".
-- Name APIs, tools, failure modes. Skip TED framing.
+- Name APIs, tools, failure modes - then say what they do in plain words. Skip TED framing.
 - Straight ASCII quotes and hyphens. No em-dashes. No curly quotes.
 - You may nod at the source in one short clause ("Microsoft's post"). \
 Do not say "the article highlights".
@@ -90,23 +102,26 @@ HUMOR TODAY ({chosen_wit['name']}):
 
 Never joke about crime, death, disaster, or communal news. If no headline is safe \
 or the fit is forced, use a daily-life scene. Do not invent a news event.
+Today is {today_name}. Do not say Monday/Tuesday/Wednesday/Thursday/Friday/Saturday/Sunday \
+unless that word is {today_name}. No Friday-deploy jokes unless today is Friday.
 
 BAD (robot / press-release):
 "Enterprise .NET builds generate binary logs that hide root cause behind gigabytes of data. \
 Most teams treat these as black boxes. In practice this turns a week-long mystery into minutes."
 
-BAD (rewriting their post):
-"There's a VS Code analyzer that parses MSBuild binary logs, surfaces the failing task, \
-and diffs successive builds."
+BAD (recipe / how-to, even if casual words):
+"I've been pinning my tools for a while, but the SDK still defaults to the latest feed. \
+My new recipe: lock the version on the command line and tack on --add-source to every CI step. \
+Need an upgrade? Bump the version manually."
 
-GOOD (human, trending or daily-life hook, your view):
-"Binlogs sit on the agent like that unread group chat about last night's match. We keep them. \
-We never open them.
+GOOD (human, casual, plain words):
+"That 'run this tool once' command still scares me. It can grab the newest copy and suddenly \
+the build machine is lying.
 
-Microsoft put Copilot on the failing MSBuild task. If it points at the dead restore, I'll use it. \
-If it just narrates the XML, I'm out.
+.NET 10 lets you lock the version and where it downloads from. I'll do that. \
+Not hoping the default source stays clean.
 
-Anyone else's CI still feel like a Friday deploy?"
+You locking tool versions yet, or still rolling the dice?"
 
 TODAY'S ANGLE:
 {angle['focus']}
@@ -186,10 +201,14 @@ BANNED PHRASES — do not use any of these:
     def critique(self, draft: str) -> str:
         """Second pass: fix generic openers, filler, fake stats. Keep draft if AI chokes."""
         wit = self._wit_mode
+        today_name = datetime.now().strftime("%A")
         hooks_text = (
             self._hooks.prompt_block()
             if self._hooks
-            else "No hook list stored. Keep any trending or daily-life opener that is already casual."
+            else (
+                f"TODAY IS {today_name}. No hook list stored. "
+                "Keep any trending or daily-life opener that is already casual."
+            )
         )
         critique_prompt = f"""You are editing a LinkedIn post so a teammate would believe \
 a senior C#/.NET developer typed it on their phone - not a model, \
@@ -208,46 +227,58 @@ DRAFT:
 
 CHECK IN ORDER:
 
-1. OPENER — Generic ("Most teams...", Wikipedia)? Rewrite: daily-life scene, \
+1. CASUAL / HUMAN — Does this look like a how-to, recipe, or LinkedIn essay? \
+Signs: "my new recipe", "I've been X for a while", "pro tip", numbered steps, \
+"vibe:", "silently hijack", even sentence rhythm, teaching tone. \
+Rewrite like a short chat. Cut the tutorial. Keep one concrete detail and the take.
+
+1b. LAYMAN — Would a smart non-developer get the point? If the draft is only \
+flags, package names, or insider slang (binlog, NuGet feed, --add-source) with \
+no plain-English clause, add one short gloss. Do not turn it into a tutorial.
+
+2. OPENER — Generic ("Most teams...", Wikipedia)? Rewrite: daily-life scene, \
 or a headline jab only if the analogy is obvious. No industry preamble.
 
-2. REPETITION — Same point twice, or sentences that all start the same way? Cut the second.
+3. REPETITION — Same point twice, or sentences that all start the same way? Cut the second.
 
-3. FILLER / GPT TELLS — Cut or rewrite: "in practice", "the result is", "black box", \
+4. FILLER / GPT TELLS — Cut or rewrite: "in practice", "the result is", "black box", \
 "good reminder", "it's worth noting", "the importance of", "cannot be overstated", \
 "highlights the importance", "valuable insights", "data-driven", "seamlessly", \
 "underscores", "leverage", "unlock", "here's the thing", "when it comes to", \
 "reliable and compliant", "guided investigation", "incident resolution", \
 "what are your thoughts", "curious to hear", "it's not just", "more than just", \
-"allows you to", "enables you to", "in the current climate", "in today's climate". \
+"allows you to", "enables you to", "in the current climate", "in today's climate", \
+"my new recipe", "pro tip", "silently hijack". \
 Replace with a concrete statement or delete.
 
-4. NOT A BLOG REWRITE — Feature list / how-it-works / benefits as if they wrote it? \
+5. NOT A BLOG REWRITE — Feature list / how-it-works / benefits as if they wrote it? \
 Cut recap to ONE sentence. Rest is their viewpoint (try / skip / argue).
 
-5. HOOK BALANCE — If there is no trending or daily-life hook, add one from the list \
+6. HOOK BALANCE — If there is no trending or daily-life hook, add one from the list \
 (routine if no headline fits). If the post is only a news recap and has no C#/.NET \
 point, cut the news and land the .NET take. Never joke about crime, death, disaster, \
 or communal news. Do not invent a headline.
 
-6. POINT OF VIEW — Is ~70% their take? First person. Not a slogan. \
+7. POINT OF VIEW — Is ~70% their take? First person. Not a slogan. \
 Do not claim they built the thing in the article.
 
-7. INVENTED STATISTICS — Numbers that were not in the source? Delete them.
+8. INVENTED STATISTICS — Numbers that were not in the source? Delete them.
 
-8. SOURCE NOD — OK: one short clause ("Microsoft's post"). \
+9. SOURCE NOD — OK: one short clause ("Microsoft's post"). \
 Fail: "the article highlights", "the post explains" - rewrite those.
 
-9. HUMAN VOICE — Must pass the coworker test. ChatGPT tells: em-dashes, curly quotes, \
-even sentence length, paired adjectives, lecture tone, recap-then-moral, TED closer. \
-Fix: contractions, short paragraphs, uneven rhythm, ASCII punctuation. \
-Write like Slack cleaned for LinkedIn. If a teammate would smell ChatGPT, rewrite.
+10. HUMAN VOICE — Still pass the coworker test after the casual rewrite. \
+Em-dashes, curly quotes, even sentence length, paired adjectives, TED closer: fix. \
+Contractions. Short paragraphs. ASCII punctuation.
 
-10. WIT — If mode is witty or dry, one line a .NET person might smirk at. \
+11. WIT — If mode is witty or dry, one line a .NET person might smirk at. \
 If mode is straight, do not add jokes. Never add "who's with me" energy.
 
-11. CLOSER — Prefer a specific conversation starter ("Anyone else's CI still feel like \
-a Friday deploy?"). Ban "what are your thoughts" and "curious to hear".
+12. CLOSER — Prefer a specific conversation starter. Ban "what are your thoughts" \
+and "curious to hear".
+
+13. WEEKDAY — Today is {today_name}. If the draft names another weekday (especially \
+Friday-deploy on a non-Friday), rewrite it to {today_name} or drop the day name.
 
 ---
 

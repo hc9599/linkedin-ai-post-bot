@@ -28,6 +28,10 @@ _AI_TELL_WARN = [
     r"\bin the indian context\b",
     r"\bin the current climate\b",
     r"\bin today's climate\b",
+    r"\bmy new recipe\b",
+    r"\bpro tip\b",
+    r"\bsilently hijack\b",
+    r"\bvibe:\b",
 ]
 
 

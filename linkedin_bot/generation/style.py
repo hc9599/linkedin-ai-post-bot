@@ -11,8 +11,8 @@ TOPIC_ANGLES = {
             "do differently in code, not a feature recap."
         ),
         "audience_signal": (
-            "Write for other C# developers. A hiring manager might lurk, but do not explain "
-            "the industry to them. If a peer would skip the paragraph, cut it."
+            "A C# peer should respect it. A smart friend who is not a developer should "
+            "still get the point in plain words. One short gloss for any jargon."
         ),
         "avoid": (
             "Do not recap the article. React: what you would try, skip, or argue with. "
@@ -25,7 +25,8 @@ TOPIC_ANGLES = {
             "afternoon you already work, not a product tour."
         ),
         "audience_signal": (
-            "Sound like you tried the tool, or you know why you still will not. Peers, not a review site."
+            "Sound like you tried the tool, or you know why you still will not. "
+            "Say what the tool does in one plain clause before the take."
         ),
         "avoid": (
             "Do not write a product review or a feature walkthrough. Your workflow take only. "
@@ -38,7 +39,8 @@ TOPIC_ANGLES = {
             "system is shaped. Name the tension."
         ),
         "audience_signal": (
-            "Another senior should want to agree or argue. Vague 'think about tradeoffs' is a fail."
+            "Another senior should want to agree or argue. Name the tradeoff in plain words, "
+            "not architecture slang alone."
         ),
         "avoid": (
             "No architecture poetry. No blog rewrite. One named tension and your side of it. "
@@ -51,7 +53,7 @@ TOPIC_ANGLES = {
             "community, or why you still pick it for backend work."
         ),
         "audience_signal": (
-            "A take someone can disagree with. Cheerleading 'C# is great' is a fail."
+            "A take someone can disagree with. No cheerleading. No insider-only slang."
         ),
         "avoid": (
             "Do not summarise the piece. Take a side on adoption, competition, or direction. "
@@ -64,7 +66,7 @@ TOPIC_ANGLES = {
             "breaks when the system is large. Be specific about the failure mode."
         ),
         "audience_signal": (
-            "Someone who has been paged should nod. Tutorial-speak is a fail."
+            "Someone who has been paged should nod. A non-dev should still follow the failure."
         ),
         "avoid": (
             "Do not reference NAS, SMB, or internal product details. Do not paste the article. "
@@ -78,7 +80,7 @@ TOPIC_ANGLES = {
             "measure or change, not a concept name-drop."
         ),
         "audience_signal": (
-            "Show you have been bitten by allocations or pauses. Abstract 'performance matters' is a fail."
+            "Show what gets slow or fat, in plain words. Do not only name Span or GC."
         ),
         "avoid": (
             "Do not lecture the concept from the article. Say what you would measure or change. "
@@ -91,7 +93,7 @@ TOPIC_ANGLES = {
             "or wait on. Not a changelog."
         ),
         "audience_signal": (
-            "A useful opinion on the roadmap. Reciting release notes is a fail."
+            "A useful opinion on what to try or skip. Explain the change like you would at lunch."
         ),
         "avoid": (
             "Do not write a changelog. Filter it: try, skip, or wait - and why. "
@@ -228,6 +230,21 @@ BANNED_PHRASES = [
     "in the Indian context",
     "in the current climate",
     "in today's climate",
+    "my new recipe",
+    "my recipe",
+    "pro tip",
+    "here's how I",
+    "the fix is simple",
+    "silently hijack",
+    "phantom package",
+    "I've been pinning",
+    "I've been doing this for",
+    "for a while, but",
+    "need an upgrade?",
+    "my go-to",
+    "hot take:",
+    "unpopular opinion:",
+    "vibe:",
 ]
 
 # ---------------------------------------------------------------
@@ -261,6 +278,10 @@ BANNED_OPENERS = [
     "As an Indian developer...",
     "In the Indian context...",
     "In today's climate...",
+    "X vibe: ...",
+    "My new recipe: ...",
+    "Hot take: ...",
+    "Unpopular opinion: ...",
 ]
 
 # ---------------------------------------------------------------
@@ -268,8 +289,9 @@ BANNED_OPENERS = [
 # ---------------------------------------------------------------
 OPENERS = [
     (
-        "Open on a trending headline or a daily-life scene (match group chat, Friday deploy, "
-        "cold coffee, standup). Then land the .NET take. Slack energy, not a whitepaper."
+        "Open on a trending headline or a daily-life scene (match group chat, cold coffee, "
+        "standup). Then land the .NET take. Slack energy, not a whitepaper. "
+        "Only name today's weekday."
     ),
     (
         "Open with a headline jab ONLY if the analogy is obvious. Otherwise a routine. "
@@ -285,7 +307,7 @@ OPENERS = [
     ),
     (
         "Open with a hook a .NET person would smirk at "
-        "(Friday deploy, power flicker at 99%, muted match tab). Then the actual take."
+        "(power flicker at 99%, muted match tab, today's weekday if it fits). Then the actual take."
     ),
 ]
 
@@ -295,7 +317,7 @@ OPENERS = [
 ENDINGS = [
     (
         "End with a specific conversation starter "
-        "('Anyone else's CI still feel like a Friday deploy?'). "
+        "('Anyone else's CI still feel like today's weekday roulette?'). "
         "No 'what are your thoughts?' No 'curious to hear'."
     ),
     (
@@ -340,10 +362,10 @@ FORMATS = [
 ]
 
 WORD_COUNTS = [
-    "between 80 and 110 words — short, like a real update, not an essay",
-    "between 90 and 130 words — room for one concrete detail as spark, then your view",
-    "between 70 and 100 words — tight. Cut anything a coworker already knows",
-    "between 100 and 140 words — still a post, not a blog. Stop when the point is made",
+    "between 55 and 80 words - casual. A phone post, not a how-to",
+    "between 60 and 90 words - room for one concrete detail, then stop",
+    "between 50 and 75 words - tight. Cut anything a coworker already knows",
+    "between 65 and 95 words - still a chat. If it reads like a recipe, cut it",
 ]
 
 # How funny today. Weighted at pick time so it is not always a bit.
@@ -365,8 +387,9 @@ WIT_MODES = [
         "name": "witty",
         "instruction": (
             "Be funny enough that a C# person stops scrolling. "
-            "One hook with bite (Friday deploy, unread match chat, "
-            "power flicker at 99%, Copilot narrating XML). Then a real viewpoint. "
+            "One hook with bite (unread match chat, power flicker at 99%, "
+            "Copilot narrating XML, today's weekday only if it is actually today). "
+            "Then a real viewpoint. "
             "Not cringe LinkedIn. Not 'who's with me'. Not mean."
         ),
     },
