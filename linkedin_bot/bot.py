@@ -20,6 +20,7 @@ from linkedin_bot.sources.devto import DevToSource
 from linkedin_bot.sources.hackernews import HackerNewsSource
 from linkedin_bot.sources.microsoft_blog import MicrosoftBlogSource
 from linkedin_bot.sources.reddit import RedditSource
+from linkedin_bot.sources.rss_feeds import InfoQDotNetSource, JetBrainsDotNetSource, LobstersSource
 
 
 class DailyPostBot:
@@ -54,12 +55,12 @@ class DailyPostBot:
 
         hooks = fetch_world_hooks()
 
-        print("\nGenerating LinkedIn post (first pass)...")
-        linkedin_content = self._generator.draft(posts, hooks)
-
-        # Models sometimes dump private "thinking" text. Strip it before editing.
-        linkedin_content = strip_think_blocks(linkedin_content)
-        print("\nDraft (cleaned):")
+        print("\nGenerating 5 sample posts...")
+        samples, wits = self._generator.draft_samples(posts, hooks)
+        winner = self._generator.pick_best(samples)
+        self._generator._wit_mode = wits[winner]
+        linkedin_content = samples[winner]
+        print(f"\nPicked sample {winner + 1} of {len(samples)}")
         print(linkedin_content)
         draft_with_topic = linkedin_content
 
@@ -125,6 +126,9 @@ def compose() -> DailyPostBot:
         DevToSource(),
         MicrosoftBlogSource(),
         HackerNewsSource(),
+        LobstersSource(),
+        InfoQDotNetSource(),
+        JetBrainsDotNetSource(),
     ])
     return DailyPostBot(
         aggregator=aggregator,

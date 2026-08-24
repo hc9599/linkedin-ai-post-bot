@@ -149,6 +149,7 @@ def fetch_feed_entries(
     *,
     timeout: int = 20,
     attempts: int = 3,
+    retry_statuses: set[int] | None = None,
 ) -> list:
     """
     Download an RSS feed ourselves, then parse it.
@@ -166,6 +167,7 @@ def fetch_feed_entries(
         timeout=timeout,
         attempts=attempts,
         headers={"Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*"},
+        retry_statuses=retry_statuses,
     )
     if response is None:
         return []

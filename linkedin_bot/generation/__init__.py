@@ -6,6 +6,7 @@ critique() = "did this fail any of our quality checks?" rewrite
 """
 from datetime import datetime
 import random
+import re
 
 from linkedin_bot.cleaning import strip_think_blocks
 from linkedin_bot.config import REQUIRED_HASHTAGS
@@ -22,6 +23,9 @@ from linkedin_bot.generation.style import (
 from linkedin_bot.hooks.world import WorldHookSet
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
+
+SAMPLE_COUNT = 5
+_WINNER_RE = re.compile(r"WINNER:\s*(\d+)", re.IGNORECASE)
 
 
 class PostGenerator:
@@ -208,6 +212,78 @@ BANNED PHRASES — do not use any of these:
             raise Exception("generate_linkedin_post: all Groq attempts failed")
 
         return result
+
+    def draft_samples(
+        self,
+        posts: list[CandidatePost],
+        hooks: WorldHookSet | None = None,
+        count: int = SAMPLE_COUNT,
+    ) -> tuple[list[str], list[dict]]:
+        """Write several drafts. Each call rerolls opener/wit so they are not clones."""
+        samples: list[str] = []
+        wits: list[dict] = []
+        for index in range(count):
+            print(f"\n--- Sample {index + 1}/{count} ---")
+            text = strip_think_blocks(self.draft(posts, hooks))
+            samples.append(text)
+            wits.append(self._wit_mode)
+            print(text)
+        return samples, wits
+
+    def pick_best(self, samples: list[str]) -> int:
+        """
+        Ask Groq which sample sounds most like a human phone post.
+
+        Returns a 0-based index. If Groq is silent, keep sample 0.
+        """
+        usable = [(i, text) for i, text in enumerate(samples) if text.strip()]
+        if not usable:
+            raise Exception("pick_best: no drafts to choose from")
+        if len(usable) == 1:
+            return usable[0][0]
+
+        today_name = datetime.now().strftime("%A")
+        packed = "\n\n".join(
+            f"SAMPLE {i + 1}:\n{text}" for i, text in enumerate(samples)
+        )
+        prompt = f"""Pick the ONE LinkedIn draft we should publish.
+
+Today is {today_name}.
+
+Score in this order:
+1. HUMAN 10: sounds typed on a phone. Not a PR, recipe, or copied hook line.
+2. LAYMAN 5: keeps a C# name plus one short gloss. Not a beginner lecture.
+3. Viewpoint, not an article rewrite. Real question at the end.
+4. Weekday names must be {today_name} or none. No Friday-deploy unless Friday.
+
+Drafts:
+{packed}
+
+Reply with exactly two lines:
+WINNER: <number 1-{len(samples)}>
+REASON: <one short line>
+"""
+        result = self._llm.complete(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=80,
+        )
+        if not result:
+            print("pick_best: Groq silent — keeping sample 1")
+            return usable[0][0]
+
+        cleaned = strip_think_blocks(result)
+        print(f"pick_best: {cleaned.strip()}")
+        match = _WINNER_RE.search(cleaned)
+        if not match:
+            print("pick_best: could not parse WINNER — keeping sample 1")
+            return usable[0][0]
+
+        choice = int(match.group(1)) - 1
+        if choice < 0 or choice >= len(samples) or not samples[choice].strip():
+            print("pick_best: WINNER out of range — keeping sample 1")
+            return usable[0][0]
+        return choice
 
     def critique(self, draft: str) -> str:
         """Second pass: fix generic openers, filler, fake stats. Keep draft if AI chokes."""
