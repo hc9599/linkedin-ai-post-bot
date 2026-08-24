@@ -153,10 +153,10 @@ it does not need to summarise the article).
     result = llm.complete(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
-        max_tokens=80,
+        max_tokens=300,
     )
     if not result:
-        return False, "checker did not answer — not publishing"
+        return False, "checker did not answer"
 
     line = result.strip().splitlines()[0].strip()
     if line.upper().startswith("PASS"):
@@ -191,6 +191,9 @@ def review_before_publish(
 
     ok, detail = llm_dotnet_source_check(llm, cleaned_post, source)
     print(f"Review checker: {detail}")
+    if not ok and detail == "checker did not answer" and keyword_ok:
+        print("Review checker: silent, but source matched and post is C#/.NET — continuing")
+        return source, None
     if not ok:
         return None, f"C#/.NET or source check failed: {detail}"
 

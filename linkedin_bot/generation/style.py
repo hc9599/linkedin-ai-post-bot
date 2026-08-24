@@ -252,6 +252,8 @@ BANNED_PHRASES = [
     "I'll flip the switch",
     "I'm flipping the switch",
     "I'll add a quick",
+    "I'll copy the",
+    "I'll give it a shot in our",
     "deterministic failure",
     "guard test",
     "one dry aside",

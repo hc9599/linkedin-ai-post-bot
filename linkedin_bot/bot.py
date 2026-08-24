@@ -99,6 +99,19 @@ class DailyPostBot:
         if fail_reason or source is None:
             print(f"ABORT: {fail_reason or 'no source matched'}")
             print("Not posting to LinkedIn.")
+            print("\n" + "=" * 60)
+            print("DRAFT (not posted):")
+            print("=" * 60)
+            print(linkedin_content)
+            print("=" * 60)
+            if dry_run:
+                history.record(
+                    topic=extract_topic_title(draft_with_topic) or "",
+                    body=linkedin_content,
+                    source_link="",
+                    dry_run=True,
+                )
+                history.save()
             return
 
         linkedin_content = attach_source_credit(linkedin_content, source)

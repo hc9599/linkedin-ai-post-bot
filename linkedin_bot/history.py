@@ -56,6 +56,16 @@ def opener_tokens(text: str) -> set[str]:
     }
 
 
+def _marker_hits(tokens: set[str]) -> set[str]:
+    """Match coffee's / coffees to coffee, leftovers to leftover."""
+    hits: set[str] = set()
+    for tok in tokens:
+        for mark in _VIBE_MARKERS:
+            if tok == mark or tok.startswith(mark) or mark.startswith(tok):
+                hits.add(mark)
+    return hits
+
+
 def opener_overlap(left: str, right: str) -> float:
     """Share of the shorter opener that also appears in the longer one."""
     a = opener_tokens(left)
@@ -143,14 +153,14 @@ class PostHistory:
         """Concrete scene nouns already used. Next hook cannot reuse these."""
         used: set[str] = set()
         for opener in self.recent_openers():
-            used |= opener_tokens(opener) & _VIBE_MARKERS
+            used |= _marker_hits(opener_tokens(opener))
         return used
 
     def scene_blocked(self, scene: str) -> bool:
         """True if this scene remixed a recent opener or a used vibe noun."""
         if self.reused_opener(scene, threshold=0.40):
             return True
-        return bool(opener_tokens(scene) & self.used_vibe_markers())
+        return bool(_marker_hits(opener_tokens(scene)) & self.used_vibe_markers())
 
     def worn_opener_words(self) -> list[str]:
         """Words that showed up in 2+ recent first lines. Do not open with these again."""
