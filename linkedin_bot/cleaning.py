@@ -32,6 +32,8 @@ _AI_TELL_WARN = [
     r"\bpro tip\b",
     r"\bsilently hijack\b",
     r"\bvibe:\b",
+    r"\bdownstream consumers\b",
+    r"\bcontract test\b",
 ]
 
 

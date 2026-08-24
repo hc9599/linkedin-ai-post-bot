@@ -66,18 +66,25 @@ class PostGenerator:
         prompt = f"""Today is {today}. Ghostwrite a LinkedIn post as if YOU are a senior C#/.NET \
 developer posting from your own account. 5+ years backend.
 
-HUMAN FIRST (main job): this must look like a casual LinkedIn update a person typed \
-on their phone. Slack/WhatsApp energy. A teammate should not smell a template, \
-a recipe blog, or ChatGPT.
+TARGET SCORES (hit these, nothing else):
+- HUMAN 10/10: a coworker would swear you typed this on your phone. Not a PR. \
+Not a template hook. Not ChatGPT. Not a recipe.
+- LAYMAN 5/10: keep the C# name (State.Message, binlog, dotnet tool exec). \
+Add ONE short gloss in normal words, then move on. Do not rewrite the whole post \
+for a non-developer. Do not lecture. 5/10 = gist is guessable, still a dev post.
 
-CASUAL means: short. Uneven. A little messy. You are talking, not teaching. \
-Not "My new recipe". Not a 3-step how-to. Not "I've been doing X for a while, but".
+HUMAN 10 rules:
+- 3 short paragraphs, blank lines. First line can be a fragment.
+- Closer must be a real question to the feed.
+- Do not copy a hook line word-for-word. Riff on it.
+- No fake work inventory ("I'm adding a contract test", "my parsing scripts"). \
+Opinion only: I'll try it / I'll skip it / this annoyed me.
+- Ban PR-speak: downstream consumers, verify the shape, contract test, parsing scripts.
+- Ban teaching: "so my X can", "this means that".
 
-PLAIN ENGLISH: a smart person who does not write C# should still get the point. \
-If you name a command, flag, or API, add one short clause in normal words \
-("dotnet tool exec - run a tool once, don't install it forever"). \
-Do not dump --flags and package names with no translation. \
-Do not lecture. One gloss, then your take.
+LAYMAN 5 rules:
+- One clause max, like "State.Message - the extra copy of the same log line".
+- Then keep talking like a .NET person. Do not explain JSON, CI, or logging from scratch.
 
 JOB: open on a trending global topic or a daily-life scene (headline only if the \
 analogy is obvious). Then post YOUR viewpoint on ONE .NET article. You did not write \
@@ -90,7 +97,7 @@ VOICE:
 - Contractions required: don't, it's, I've, we're.
 - Uneven sentence length. Mix a 4-word line with a longer one. Short paragraphs. Blank lines.
 - Casual English. No lecture about a country or "the current climate".
-- Name APIs, tools, failure modes - then say what they do in plain words. Skip TED framing.
+- Name the API once. One gloss. Then the take. Skip TED framing.
 - Straight ASCII quotes and hyphens. No em-dashes. No curly quotes.
 - You may nod at the source in one short clause ("Microsoft's post"). \
 Do not say "the article highlights".
@@ -114,14 +121,18 @@ BAD (recipe / how-to, even if casual words):
 My new recipe: lock the version on the command line and tack on --add-source to every CI step. \
 Need an upgrade? Bump the version manually."
 
-GOOD (human, casual, plain words):
-"That 'run this tool once' command still scares me. It can grab the newest copy and suddenly \
-the build machine is lying.
+BAD (PR note + insider dump, last dry-run):
+"The new JSON console logger in .NET 10 finally stopped echoing the formatted message in \
+State.Message. Now the log only contains the top-level text, so my parsing scripts can drop \
+the extra field. I'm adding a quick contract test for downstream consumers."
 
-.NET 10 lets you lock the version and where it downloads from. I'll do that. \
-Not hoping the default source stays clean.
+GOOD (human 10, layman 5):
+"Coffee's cold. That unread chat can wait.
 
-You locking tool versions yet, or still rolling the dice?"
+.NET 10 stopped stuffing the same log line into State.Message - the leftover copy of the text. \
+I'll take it. Less junk in the JSON.
+
+Anyone else still scraping console logs and regretting it?"
 
 TODAY'S ANGLE:
 {angle['focus']}
@@ -227,14 +238,12 @@ DRAFT:
 
 CHECK IN ORDER:
 
-1. CASUAL / HUMAN — Does this look like a how-to, recipe, or LinkedIn essay? \
-Signs: "my new recipe", "I've been X for a while", "pro tip", numbered steps, \
-"vibe:", "silently hijack", even sentence rhythm, teaching tone. \
-Rewrite like a short chat. Cut the tutorial. Keep one concrete detail and the take.
+1. HUMAN 10 — Phone post or fail. Cut PR-speak (downstream consumers, contract test, \
+verify the shape, parsing scripts). Cut copied hook lines. Cut fake "I'm adding a test". \
+Force 3 short paragraphs + a real question at the end. Fragments OK.
 
-1b. LAYMAN — Would a smart non-developer get the point? If the draft is only \
-flags, package names, or insider slang (binlog, NuGet feed, --add-source) with \
-no plain-English clause, add one short gloss. Do not turn it into a tutorial.
+1b. LAYMAN 5 — Keep the C# name. Add one short gloss if there is none. \
+If the draft explains logging/JSON/CI from scratch, cut the lecture. 5/10 only.
 
 2. OPENER — Generic ("Most teams...", Wikipedia)? Rewrite: daily-life scene, \
 or a headline jab only if the analogy is obvious. No industry preamble.

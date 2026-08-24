@@ -11,8 +11,7 @@ TOPIC_ANGLES = {
             "do differently in code, not a feature recap."
         ),
         "audience_signal": (
-            "A C# peer should respect it. A smart friend who is not a developer should "
-            "still get the point in plain words. One short gloss for any jargon."
+            "C# peer first. One short gloss for jargon. Do not write a beginner lesson."
         ),
         "avoid": (
             "Do not recap the article. React: what you would try, skip, or argue with. "
@@ -66,7 +65,7 @@ TOPIC_ANGLES = {
             "breaks when the system is large. Be specific about the failure mode."
         ),
         "audience_signal": (
-            "Someone who has been paged should nod. A non-dev should still follow the failure."
+            "Someone who has been paged should nod. One gloss if the failure has a jargon name."
         ),
         "avoid": (
             "Do not reference NAS, SMB, or internal product details. Do not paste the article. "
@@ -245,6 +244,11 @@ BANNED_PHRASES = [
     "hot take:",
     "unpopular opinion:",
     "vibe:",
+    "downstream consumers",
+    "contract test",
+    "verify the shape",
+    "parsing scripts",
+    "I'm adding a",
 ]
 
 # ---------------------------------------------------------------
