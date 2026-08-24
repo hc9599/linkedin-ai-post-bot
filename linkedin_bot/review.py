@@ -10,6 +10,8 @@ Better to skip a day than publish a random off-topic take.
 import re
 
 from linkedin_bot.config import HASHTAGS
+from linkedin_bot.generation.reject import reject_hits
+from linkedin_bot.generation.style import MAX_POST_WORDS
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
 from linkedin_bot.sources.relevance import is_dotnet_relevant
@@ -186,9 +188,34 @@ def review_before_publish(
             "Still asking the AI checker."
         )
 
+    leftover = reject_hits(cleaned_post)
+    if leftover:
+        return None, f"Pass 3 reject-list survived: {', '.join(leftover)}"
+
+    extra_tags = [
+        tag for tag in re.findall(r"#\w+", cleaned_post) if tag not in HASHTAGS
+    ]
+    if extra_tags:
+        return None, f"extra hashtags: {', '.join(extra_tags)}"
+
+    words = _gate_word_count(cleaned_post)
+    if words > MAX_POST_WORDS:
+        return None, f"post is {words} words (max {MAX_POST_WORDS})"
+
     ok, detail = llm_dotnet_source_check(llm, cleaned_post, source)
     print(f"Review checker: {detail}")
     if not ok:
         return None, f"C#/.NET or source check failed: {detail}"
 
     return source, None
+
+
+def _gate_word_count(text: str) -> int:
+    body = _body_without_hashtags(text)
+    kept: list[str] = []
+    for line in body.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Source:") or stripped.startswith("http"):
+            continue
+        kept.append(stripped)
+    return len(" ".join(kept).split())

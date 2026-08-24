@@ -65,6 +65,11 @@ def clean_markdown(text):
     # Remove code blocks
     text = re.sub(r'```[\s\S]*?```', '', text)
 
+    # Pass 1 may keep one dry 😅 or 💀. Park them, then strip the rest.
+    _emoji_hold = {"😅": "\x00E1\x00", "💀": "\x00E2\x00"}
+    for glyph, token in _emoji_hold.items():
+        text = text.replace(glyph, token)
+
     # Remove emojis and unicode symbols — preserve plain ASCII (including # in C#)
     text = re.sub(
         r'[\U0001F600-\U0001F64F'
@@ -82,6 +87,9 @@ def clean_markdown(text):
         '',
         text
     )
+
+    for glyph, token in _emoji_hold.items():
+        text = text.replace(token, glyph)
 
     # Strip "hashtag#" that some models write before # signs
     text = re.sub(r'\bhashtag#', '#', text, flags=re.IGNORECASE)

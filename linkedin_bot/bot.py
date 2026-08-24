@@ -10,6 +10,7 @@ from datetime import datetime
 from linkedin_bot.cleaning import default_cleaning_pipeline, strip_think_blocks, CleaningPipeline
 from linkedin_bot.config import env_flag
 from linkedin_bot.generation import PostGenerator
+from linkedin_bot.generation.variance import LoopState, first_line
 from linkedin_bot.images import ImageService, PollinationsImageRenderer
 from linkedin_bot.llm import GroqClient, LLMClient
 from linkedin_bot.publishing import LinkedInPublisher, Publisher
@@ -51,17 +52,11 @@ class DailyPostBot:
             print("No posts fetched, exiting.")
             return
 
-        print("\nGenerating LinkedIn post (first pass)...")
-        linkedin_content = self._generator.draft(posts)
-
-        # Models sometimes dump private "thinking" text. Strip it before editing.
-        linkedin_content = strip_think_blocks(linkedin_content)
-        print("\nDraft (cleaned):")
+        print("\nRunning senior-dev generation loop...")
+        linkedin_content = strip_think_blocks(self._generator.compose(posts))
+        print("\nDraft after loop:")
         print(linkedin_content)
         draft_with_topic = linkedin_content
-
-        print("\nRunning self-critique pass...")
-        linkedin_content = self._generator.critique(linkedin_content)
 
         # Hashtags, no markdown, no leftover TOPIC line, LinkedIn length cap.
         linkedin_content = self._cleaner.apply(linkedin_content)
@@ -89,6 +84,9 @@ class DailyPostBot:
         print(f"Word count: {len(linkedin_content.split())}")
         print(f"Source: {source.title}")
         print(f"Link: {source.link}")
+
+        LoopState.load().record(linkedin_content)
+        print(f"Pass 4 — recorded opener: {first_line(linkedin_content)}")
 
         image_bytes = None
         if generate_image:
