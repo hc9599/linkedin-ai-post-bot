@@ -47,30 +47,74 @@ DAILY_LIFE_ANYDAY = [
     "Leaving on time and still hitting the same traffic light twice.",
 ]
 
-# Only mix these in on that weekday.
+# Mood of the calendar day. Hook must feel like this, even if the weekday word is omitted.
+DAY_VIBES = {
+    0: (
+        "Monday hectic office. Weekend inbox dump. Standup that should have been "
+        "a Slack. Already late before 10. Coffee cold because of meetings. "
+        "Not relaxed. Not Friday-deploy."
+    ),
+    1: (
+        "Tuesday already-behind. Monday leftovers still open. The flaky test came back. "
+        "The week has started for real. Not a fresh-start Monday. Not Friday-deploy."
+    ),
+    2: (
+        "Wednesday midweek grind. Calendar ate the only coding block. This is when "
+        "the red build likes to live. Hump day, not a restart and not a wind-down."
+    ),
+    3: (
+        "Thursday almost-Friday pressure. People say ship tomorrow. Tomorrow is not "
+        "today. Do not celebrate. Do not write Friday-deploy jokes."
+    ),
+    4: (
+        "Friday deploy nerves. People are already mentally gone. Someone still wants "
+        "to click ship. Friday-deploy language is allowed today only."
+    ),
+    5: (
+        "Saturday should-not-be-here. A 'quick prod check' that is never quick. "
+        "Slightly annoyed you opened the laptop."
+    ),
+    6: (
+        "Sunday scaries. Work laptop already open. Tomorrow's standup is already "
+        "in your head. Quiet dread, not a Monday fire drill yet."
+    ),
+}
+
+# Only mix these in on that weekday. Always include them so the hook can sound like today.
 DAILY_LIFE_BY_WEEKDAY = {
     0: [
         "Monday standup that should have been a message.",
         "Inbox from the weekend pretending it is urgent.",
+        "Coffee already cold and standup is still going.",
+        "First Slack of the week is already a fire drill.",
     ],
     1: [
         "Tuesday and the flaky test is already back.",
+        "Monday leftovers still sitting in the inbox.",
+        "Already behind and it is only Tuesday.",
     ],
     2: [
         "Wednesday midweek CI. This is where the red build likes to live.",
+        "Hump-day calendar ate the only coding block.",
+        "Halfway through the week and the quiet hour is gone.",
     ],
     3: [
         "Thursday 'ship it tomorrow' pressure. Not tomorrow yet.",
+        "Almost Friday. Nobody say it out loud.",
+        "Thursday afternoon and the review pile doubled.",
     ],
     4: [
         "Friday deploy energy. Everyone knows better. Someone still clicks.",
         "Friday afternoon CI. Nobody wants to own the red build.",
+        "Half the office already mentally gone. Prod is still here.",
     ],
     5: [
         "Saturday and a 'quick prod check' that is never quick.",
+        "Weekend laptop. You promised you would not.",
     ],
     6: [
         "Sunday evening already opening the work laptop.",
+        "Sunday scaries: tomorrow's standup is already in your head.",
     ],
 }
 
@@ -86,11 +130,20 @@ class WorldHookSet:
     headlines: list[WorldHeadline]
     routines: list[str]
     weekday_name: str
+    day_vibe: str
 
     def prompt_block(self) -> str:
         """Text the writer sees. Headlines optional. Routines always there."""
         lines = [
             f"TODAY IS {self.weekday_name}.",
+            f"DAY VIBE: {self.day_vibe}",
+            (
+                f"The opener MUST feel like {self.weekday_name}. You do not have to say "
+                f"the word {self.weekday_name}, but a coworker should guess the day "
+                "from the scene. Prefer a weekday-specific scene over generic coffee "
+                "or microwave. If the hook could be pasted on any other weekday "
+                "unchanged, rewrite it."
+            ),
             f"If you name a weekday, it must be {self.weekday_name}.",
             "Friday-deploy / Friday roulette language is ONLY allowed on Friday.",
             "TRENDING HOOKS (opener material, not the post topic):",
@@ -145,10 +198,17 @@ def _headlines_from_feed(url: str, limit: int) -> list[WorldHeadline]:
     return picked
 
 
+def current_day_context() -> tuple[str, str, int]:
+    """(weekday name, vibe text, weekday index). Uses the process timezone."""
+    now = datetime.now()
+    weekday = now.weekday()
+    return now.strftime("%A"), DAY_VIBES[weekday], weekday
+
+
 def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2) -> WorldHookSet:
     """
     Live world/tech/sport headlines if a feed works and topics are safe.
-    Always include a couple of daily-life scenes as fallback.
+    Always include today's weekday scenes, plus a couple of any-day fallbacks.
     """
     print("Fetching trending hooks (headlines + daily life)...")
     collected: list[WorldHeadline] = []
@@ -172,10 +232,14 @@ def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2) -> Wor
         print("  Headlines: none usable (feeds empty or all filtered)")
 
     now = datetime.now()
+    weekday = now.weekday()
     weekday_name = now.strftime("%A")
-    pool = DAILY_LIFE_ANYDAY + DAILY_LIFE_BY_WEEKDAY.get(now.weekday(), [])
-    routines = random.sample(pool, k=min(routine_count, len(pool)))
+    day_vibe = DAY_VIBES[weekday]
+    weekday_scenes = list(DAILY_LIFE_BY_WEEKDAY.get(weekday, []))
+    extra = random.sample(DAILY_LIFE_ANYDAY, k=min(routine_count, len(DAILY_LIFE_ANYDAY)))
+    routines = weekday_scenes + extra
     print(f"  Today is {weekday_name}")
+    print(f"  Day vibe: {day_vibe}")
     print("  Daily-life scenes:")
     for scene in routines:
         print(f"    - {scene}")
@@ -186,4 +250,5 @@ def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2) -> Wor
         headlines=headlines,
         routines=routines,
         weekday_name=weekday_name,
+        day_vibe=day_vibe,
     )

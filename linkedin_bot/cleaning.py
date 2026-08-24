@@ -34,6 +34,8 @@ _AI_TELL_WARN = [
     r"\bvibe:\b",
     r"\bdownstream consumers\b",
     r"\bcontract test\b",
+    r"\bone dry aside\b",
+    r"\bon the menu\b",
 ]
 
 

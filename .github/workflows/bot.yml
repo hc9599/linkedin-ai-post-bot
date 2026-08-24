@@ -42,6 +42,7 @@ jobs:
 
       - name: Run bot
         env:
+          TZ: Asia/Kolkata
           PYTHONUNBUFFERED: "1"
           PYTHONIOENCODING: "utf-8"
           PYTHONPATH: ${{ github.workspace }}

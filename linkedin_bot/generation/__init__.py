@@ -8,7 +8,7 @@ from datetime import datetime
 import random
 import re
 
-from linkedin_bot.cleaning import strip_think_blocks
+from linkedin_bot.cleaning import strip_think_blocks, strip_topic_line
 from linkedin_bot.config import REQUIRED_HASHTAGS
 from linkedin_bot.generation.style import (
     BANNED_OPENERS,
@@ -20,12 +20,86 @@ from linkedin_bot.generation.style import (
     WIT_MODES,
     WORD_COUNTS,
 )
-from linkedin_bot.hooks.world import WorldHookSet
+from linkedin_bot.hooks.world import WorldHookSet, current_day_context
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
 
 SAMPLE_COUNT = 5
 _WINNER_RE = re.compile(r"WINNER:\s*(\d+)", re.IGNORECASE)
+_SAMPLE_RE = re.compile(r"\b(?:sample|winner)\s*[:#-]?\s*(\d+)\b", re.IGNORECASE)
+_WEEKDAY_NAMES = (
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+)
+_VIBE_HINTS = {
+    0: ("inbox", "weekend", "standup", "monday", "fire drill", "week already"),
+    1: ("tuesday", "already behind", "leftover", "flaky"),
+    2: ("wednesday", "midweek", "hump", "red build", "coding block"),
+    3: ("thursday", "ship tomorrow", "almost friday", "review pile"),
+    4: ("friday", "deploy", "mentally gone"),
+    5: ("saturday", "prod check", "weekend laptop"),
+    6: ("sunday", "sunday scaries", "work laptop", "tomorrow's standup"),
+}
+
+
+def _topic_line(text: str) -> str:
+    match = re.search(r"^TOPIC:\s*(.+)$", text, flags=re.IGNORECASE | re.MULTILINE)
+    return match.group(1).strip() if match else ""
+
+
+def _title_tokens(title: str) -> set[str]:
+    return {tok.lower() for tok in re.findall(r"[A-Za-z][A-Za-z0-9.]+", title) if len(tok) >= 5}
+
+
+def _score_sample(text: str, titles: list[str], token_sets: list[set[str]], index: int, today_name: str, weekday: int) -> int:
+    """Local backup when Groq does not return WINNER."""
+    if not text.strip():
+        return -10_000
+    body = strip_topic_line(text).lower()
+    score = 0
+    today_l = today_name.lower()
+    if today_l in body:
+        score += 3
+    for day in _WEEKDAY_NAMES:
+        if day != today_l and re.search(rf"\b{day}\b", body):
+            score -= 6
+    if weekday != 4 and ("friday deploy" in body or "friday roulette" in body):
+        score -= 8
+    if any(hint in body for hint in _VIBE_HINTS.get(weekday, ())):
+        score += 3
+    if "?" in text:
+        score += 2
+    words = len(text.split())
+    if 50 <= words <= 110:
+        score += 1
+    elif words > 140:
+        score -= 2
+    mine = token_sets[index]
+    foreign: set[str] = set()
+    for other_index, tokens in enumerate(token_sets):
+        if other_index != index:
+            foreign |= tokens
+    leaked = foreign - mine
+    own_title = titles[index].lower()
+    if any(tok in body and tok not in own_title for tok in leaked):
+        score -= 4
+    if "one dry aside" in body or "on the menu" in body:
+        score -= 2
+    return score
+
+
+def _heuristic_pick(samples: list[str], today_name: str, weekday: int) -> int:
+    titles = [_topic_line(sample) for sample in samples]
+    token_sets = [_title_tokens(title) for title in titles]
+    best_index = 0
+    best_score = -10_000
+    for index, text in enumerate(samples):
+        score = _score_sample(text, titles, token_sets, index, today_name, weekday)
+        print(f"  heuristic sample {index + 1}: {score}")
+        if score > best_score:
+            best_score = score
+            best_index = index
+    print(f"pick_best heuristic: sample {best_index + 1} (score {best_score})")
+    return best_index
 
 
 class PostGenerator:
@@ -39,19 +113,19 @@ class PostGenerator:
     def draft(self, posts: list[CandidatePost], hooks: WorldHookSet | None = None) -> str:
         """First pass: pick one article and write a LinkedIn post in the daily style."""
         today = datetime.now().strftime("%A, %B %d")
-        weekday = datetime.now().weekday()
+        today_name, day_vibe, weekday = current_day_context()
         self._hooks = hooks
 
         posts_text = "\n\n".join([
             f"[{p.source}] {p.title} ({p.reactions} reactions)\n{p.link}\n{p.summary}"
             for p in posts
         ])
-        today_name = datetime.now().strftime("%A")
         hooks_text = hooks.prompt_block() if hooks else (
-            f"TODAY IS {today_name}. If you name a weekday, it must be {today_name}. "
+            f"TODAY IS {today_name}. DAY VIBE: {day_vibe} "
+            f"If you name a weekday, it must be {today_name}. "
             "Friday-deploy language is ONLY allowed on Friday. "
-            "TRENDING HOOKS: none fetched. Open on a daily-life scene "
-            "(standup, unread match chat, cold coffee) without inventing a news event."
+            "TRENDING HOOKS: none fetched. Open on a scene that feels like "
+            f"{today_name}, not generic coffee that works any day."
         )
 
         angle = TOPIC_ANGLES[weekday]
@@ -90,9 +164,21 @@ LAYMAN 5 rules:
 - One clause max, like "State.Message - the extra copy of the same log line".
 - Then keep talking like a .NET person. Do not explain JSON, CI, or logging from scratch.
 
-JOB: open on a trending global topic or a daily-life scene (headline only if the \
-analogy is obvious). Then post YOUR viewpoint on ONE .NET article. You did not write \
-the article. You did not ship their product. Do not rewrite their blog.
+JOB: open on TODAY'S weekday vibe ({today_name}: {day_vibe}) or a trending \
+headline if the analogy is obvious. Then post YOUR viewpoint on ONE .NET article. \
+You did not write the article. You did not ship their product. Do not rewrite their blog.
+
+DAY VIBE IS REQUIRED:
+- The first paragraph must feel like {today_name}. Inbox/standup fire on Monday. \
+Already-behind on Tuesday. Midweek red build on Wednesday. Almost-Friday pressure \
+on Thursday. Deploy nerves on Friday. Should-not-be-here on the weekend.
+- Do not open on generic microwave / cold coffee unless you tie it to {today_name}.
+- If a coworker could paste the hook on Friday unchanged, rewrite it.
+
+ONE ARTICLE ONLY:
+- Every API, type, or tool name must come from the chosen TOPIC article.
+- Do not mix leftovers from the other articles (fail: State.Message inside an \
+xUnit ParallelMode post).
 
 Ratio: hook ~20%, your take ~70%, one article fact ~10%.
 
@@ -234,7 +320,7 @@ BANNED PHRASES — do not use any of these:
         """
         Ask Groq which sample sounds most like a human phone post.
 
-        Returns a 0-based index. If Groq is silent, keep sample 0.
+        Returns a 0-based index. If Groq is silent, score locally.
         """
         usable = [(i, text) for i, text in enumerate(samples) if text.strip()]
         if not usable:
@@ -242,59 +328,64 @@ BANNED PHRASES — do not use any of these:
         if len(usable) == 1:
             return usable[0][0]
 
-        today_name = datetime.now().strftime("%A")
+        today_name, day_vibe, weekday = current_day_context()
         packed = "\n\n".join(
             f"SAMPLE {i + 1}:\n{text}" for i, text in enumerate(samples)
         )
         prompt = f"""Pick the ONE LinkedIn draft we should publish.
 
 Today is {today_name}.
+DAY VIBE: {day_vibe}
 
 Score in this order:
-1. HUMAN 10: sounds typed on a phone. Not a PR, recipe, or copied hook line.
-2. LAYMAN 5: keeps a C# name plus one short gloss. Not a beginner lecture.
-3. Viewpoint, not an article rewrite. Real question at the end.
-4. Weekday names must be {today_name} or none. No Friday-deploy unless Friday.
+1. DAY VIBE: hook feels like {today_name}. Reject generic coffee/microwave that works any day.
+2. HUMAN 10: sounds typed on a phone. Not a PR, recipe, or copied hook line.
+3. ONE ARTICLE: reject drafts that mix a fact from a different article than their TOPIC line.
+4. LAYMAN 5: keeps a C# name plus one short gloss. Not a beginner lecture.
+5. Viewpoint, not an article rewrite. Real question at the end.
+6. Weekday names must be {today_name} or none. No Friday-deploy unless Friday.
 
 Drafts:
 {packed}
 
-Reply with exactly two lines:
+Reply with exactly two lines and nothing else:
 WINNER: <number 1-{len(samples)}>
 REASON: <one short line>
 """
         result = self._llm.complete(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
-            max_tokens=80,
+            max_tokens=300,
         )
+        fallback = _heuristic_pick(samples, today_name, weekday)
         if not result:
-            print("pick_best: Groq silent — keeping sample 1")
-            return usable[0][0]
+            print("pick_best: Groq silent — using heuristic")
+            return fallback
 
         cleaned = strip_think_blocks(result)
         print(f"pick_best: {cleaned.strip()}")
-        match = _WINNER_RE.search(cleaned)
+        match = _WINNER_RE.search(cleaned) or _SAMPLE_RE.search(cleaned)
         if not match:
-            print("pick_best: could not parse WINNER — keeping sample 1")
-            return usable[0][0]
+            print("pick_best: could not parse WINNER — using heuristic")
+            return fallback
 
         choice = int(match.group(1)) - 1
         if choice < 0 or choice >= len(samples) or not samples[choice].strip():
-            print("pick_best: WINNER out of range — keeping sample 1")
-            return usable[0][0]
+            print("pick_best: WINNER out of range — using heuristic")
+            return fallback
         return choice
 
     def critique(self, draft: str) -> str:
         """Second pass: fix generic openers, filler, fake stats. Keep draft if AI chokes."""
         wit = self._wit_mode
-        today_name = datetime.now().strftime("%A")
+        today_name, day_vibe, _weekday = current_day_context()
         hooks_text = (
             self._hooks.prompt_block()
             if self._hooks
             else (
-                f"TODAY IS {today_name}. No hook list stored. "
-                "Keep any trending or daily-life opener that is already casual."
+                f"TODAY IS {today_name}. DAY VIBE: {day_vibe} "
+                "Keep any opener that already feels like today. "
+                "Rewrite generic coffee/microwave that works any day."
             )
         )
         critique_prompt = f"""You are editing a LinkedIn post so a teammate would believe \
@@ -362,8 +453,15 @@ If mode is straight, do not add jokes. Never add "who's with me" energy.
 12. CLOSER — Prefer a specific conversation starter. Ban "what are your thoughts" \
 and "curious to hear".
 
-13. WEEKDAY — Today is {today_name}. If the draft names another weekday (especially \
-Friday-deploy on a non-Friday), rewrite it to {today_name} or drop the day name.
+13. WEEKDAY / DAY VIBE — Today is {today_name}. Mood: {day_vibe} \
+If the draft names another weekday (especially Friday-deploy on a non-Friday), \
+rewrite it to {today_name} or drop the day name. If the opener is generic \
+microwave/coffee that works any day, rewrite it to a {today_name} scene. \
+Do not write the words "dry aside".
+
+14. ONE ARTICLE — If the draft mixes a fact from a different article than the \
+TOPIC line (State.Message inside an xUnit post, ParallelMode inside an auth-metrics \
+post), drop the leftover fact.
 
 ---
 

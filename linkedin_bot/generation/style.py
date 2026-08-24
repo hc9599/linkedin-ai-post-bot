@@ -249,6 +249,8 @@ BANNED_PHRASES = [
     "verify the shape",
     "parsing scripts",
     "I'm adding a",
+    "one dry aside",
+    "on the menu",
 ]
 
 # ---------------------------------------------------------------
@@ -293,9 +295,9 @@ BANNED_OPENERS = [
 # ---------------------------------------------------------------
 OPENERS = [
     (
-        "Open on a trending headline or a daily-life scene (match group chat, cold coffee, "
-        "standup). Then land the .NET take. Slack energy, not a whitepaper. "
-        "Only name today's weekday."
+        "Open on today's weekday vibe (Monday hectic inbox, Friday deploy nerves) "
+        "or a headline. Then land the .NET take. Slack energy, not a whitepaper. "
+        "Only name today's weekday. Generic coffee/microwave that works any day is a fail."
     ),
     (
         "Open with a headline jab ONLY if the analogy is obvious. Otherwise a routine. "
@@ -383,8 +385,8 @@ WIT_MODES = [
     {
         "name": "dry",
         "instruction": (
-            "One dry aside — the kind you'd mutter in standup. Not a punchline hunt. "
-            "Then back to the take."
+            "One muttered standup aside. Not a punchline hunt. Then back to the take. "
+            "Do not write the words 'dry aside'."
         ),
     },
     {
