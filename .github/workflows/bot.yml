@@ -23,7 +23,7 @@ permissions:
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 8
     defaults:
       run:
         working-directory: ${{ github.workspace }}

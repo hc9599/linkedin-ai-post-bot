@@ -152,6 +152,54 @@ class PostGenerator:
         self._hooks: WorldHookSet | None = None
         self._history = history
 
+    def draft_once(
+        self,
+        posts: list[CandidatePost],
+        hooks: WorldHookSet | None = None,
+        history: PostHistory | None = None,
+    ) -> str:
+        """One short Groq write. No sample loop. No second-pass model."""
+        if history is not None:
+            self._history = history
+        self._hooks = hooks
+        article = posts[0]
+        today_name, day_vibe, _weekday = current_day_context()
+        scene = (
+            hooks.routines[0]
+            if hooks and hooks.routines
+            else "Alarm lost. Weekend still in the room."
+        )
+        banned = ""
+        if history:
+            markers = history.used_vibe_markers()
+            if markers:
+                banned = "Do not open with these worn nouns: " + ", ".join(sorted(markers))
+        summary = (article.summary or "")[:360]
+        print("Voice: one-shot")
+        prompt = f"""Write a LinkedIn post as a senior C#/.NET developer. Phone voice.
+Today is {today_name}. Mood: {day_vibe}
+Open on this life scene (riff, do not copy): {scene}
+{banned}
+Rules: 3 short paragraphs, blank lines, contractions, ASCII only. Real question at the end.
+Keep one C# name plus one short gloss. Opinion only (I'll try it / I'll skip it).
+No fake work. No clock times. No standup/inbox/Slack/badge. You did not write the article.
+
+Article:
+TITLE: {article.title}
+{summary}
+
+First line exactly: TOPIC: {article.title}
+Then the post. Last line exactly: {REQUIRED_HASHTAGS}
+"""
+        result = self._llm.complete(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+            max_tokens=400,
+        )
+        if not result:
+            raise Exception("draft_once: Groq failed")
+        return result
+
     def draft(
         self,
         posts: list[CandidatePost],

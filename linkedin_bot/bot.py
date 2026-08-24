@@ -11,7 +11,7 @@ import re
 
 from linkedin_bot.cleaning import default_cleaning_pipeline, strip_think_blocks, CleaningPipeline
 from linkedin_bot.config import env_flag
-from linkedin_bot.generation import SAMPLE_COUNT, PostGenerator
+from linkedin_bot.generation import PostGenerator
 from linkedin_bot.history import PostHistory
 from linkedin_bot.hooks.world import fetch_world_hooks
 from linkedin_bot.review import attach_source_credit, extract_topic_title, review_before_publish
@@ -98,19 +98,14 @@ class DailyPostBot:
             return
 
         posts = [article]
-        hooks = fetch_world_hooks(history=history, headline_limit=0)
+        hooks = fetch_world_hooks(history=history, headline_limit=0, routine_count=1)
 
-        print(f"\nDrafting {SAMPLE_COUNT} takes on one article...")
-        samples, wits = self._generator.draft_samples(posts, hooks, history=history)
-        winner = self._generator.pick_best(samples)
-        self._generator._wit_mode = wits[winner]
-        linkedin_content = samples[winner]
-        print(f"\nPicked sample {winner + 1} of {len(samples)}")
+        print("\nWriting one post (single Groq call)...")
+        linkedin_content = strip_think_blocks(
+            self._generator.draft_once(posts, hooks, history)
+        )
         print(linkedin_content)
         draft_with_topic = linkedin_content
-
-        print("\nRunning self-critique pass...")
-        linkedin_content = self._generator.critique(linkedin_content)
 
         # Hashtags, no markdown, no leftover TOPIC line, LinkedIn length cap.
         linkedin_content = self._cleaner.apply(linkedin_content)
@@ -121,6 +116,7 @@ class DailyPostBot:
             draft_with_topic,
             linkedin_content,
             posts,
+            skip_llm=True,
         )
         if fail_reason or source is None:
             print(f"ABORT: {fail_reason or 'no source matched'}")

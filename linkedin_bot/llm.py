@@ -40,62 +40,57 @@ class GroqClient:
     ) -> str | None:
         api_key = self._api_key if self._api_key is not None else groq_api_key()
         for model in self._models:
-            for attempt in range(2):
-                try:
-                    payload = {
-                        "model": model,
-                        "messages": messages,
-                        "temperature": temperature,
-                        "top_p": 0.92,
-                        "frequency_penalty": 0.5,
-                        "presence_penalty": 0.4,
-                        "max_tokens": max_tokens,
-                    }
-                    reasoning_effort = self._reasoning_effort(model)
-                    if reasoning_effort is not None:
-                        payload["reasoning_effort"] = reasoning_effort
+            try:
+                payload = {
+                    "model": model,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "top_p": 0.92,
+                    "frequency_penalty": 0.5,
+                    "presence_penalty": 0.4,
+                    "max_tokens": max_tokens,
+                }
+                reasoning_effort = self._reasoning_effort(model)
+                if reasoning_effort is not None:
+                    payload["reasoning_effort"] = reasoning_effort
 
-                    print(f"Groq: calling {model} (try {attempt + 1})...")
-                    started = time.monotonic()
-                    response = http_session().post(
-                        GROQ_API_URL,
-                        headers={
-                            "Authorization": f"Bearer {api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json=payload,
-                        timeout=45,
-                    )
-                    elapsed = time.monotonic() - started
+                print(f"Groq: calling {model}...")
+                started = time.monotonic()
+                response = http_session().post(
+                    GROQ_API_URL,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=20,
+                )
+                elapsed = time.monotonic() - started
 
-                    if response.status_code == 200:
-                        raw = response.json()["choices"][0]["message"].get("content") or ""
-                        content = raw.strip()
-                        if not content:
-                            print(
-                                f"Groq: {model} empty after {elapsed:.1f}s "
-                                "(thinking ate the tokens) — next model"
-                            )
-                            break
-                        print(f"Groq: using {model} ({elapsed:.1f}s)")
-                        return content
-
-                    # 400/404 means "this model name is wrong" — skip to the next model.
-                    if response.status_code in (400, 404):
+                if response.status_code == 200:
+                    raw = response.json()["choices"][0]["message"].get("content") or ""
+                    content = raw.strip()
+                    if not content:
                         print(
-                            f"Groq model {model} rejected ({response.status_code}) — trying next model"
+                            f"Groq: {model} empty after {elapsed:.1f}s "
+                            "(thinking ate the tokens) — next model"
                         )
-                        break
+                        continue
+                    print(f"Groq: using {model} ({elapsed:.1f}s)")
+                    return content
 
+                if response.status_code in (400, 404):
                     print(
-                        f"Groq [{model}] attempt {attempt + 1} failed: "
-                        f"{response.status_code} — {response.text[:120]}"
+                        f"Groq model {model} rejected ({response.status_code}) — trying next model"
                     )
+                    continue
 
-                except Exception as e:
-                    print(f"Groq [{model}] attempt {attempt + 1} exception: {e}")
+                print(
+                    f"Groq [{model}] failed: {response.status_code} — {response.text[:120]}"
+                )
 
-                time.sleep(1)
+            except Exception as e:
+                print(f"Groq [{model}] exception: {e}")
 
         return None
 

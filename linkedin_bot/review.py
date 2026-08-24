@@ -169,6 +169,8 @@ def review_before_publish(
     draft_with_topic: str,
     cleaned_post: str,
     candidates: list[CandidatePost],
+    *,
+    skip_llm: bool = True,
 ) -> tuple[CandidatePost | None, str | None]:
     """
     Double-check before LinkedIn.
@@ -183,6 +185,12 @@ def review_before_publish(
 
     body = _body_without_hashtags(cleaned_post)
     keyword_ok = is_dotnet_relevant(body, source.title + " " + source.summary)
+    if skip_llm:
+        if not keyword_ok:
+            return None, "post body has no obvious C#/.NET words — not publishing"
+        print("Review: local source + keyword match (no Groq checker)")
+        return source, None
+
     if not keyword_ok:
         print(
             "Review: post body has no obvious C#/.NET words. "

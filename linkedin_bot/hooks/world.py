@@ -266,9 +266,9 @@ def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2, histor
     weekday_name = now.strftime("%A")
     day_vibe = DAY_VIBES[weekday]
     weekday_pool = list(DAILY_LIFE_BY_WEEKDAY.get(weekday, []))
-    weekday_scenes = _fresh_scenes(weekday_pool, history, 4)
-    extra = _fresh_scenes(DAILY_LIFE_ANYDAY, history, max(routine_count, 4))
-    routines = weekday_scenes + extra
+    weekday_scenes = _fresh_scenes(weekday_pool, history, max(1, routine_count))
+    extra = _fresh_scenes(DAILY_LIFE_ANYDAY, history, max(1, routine_count))
+    routines = (weekday_scenes + extra)[: max(1, routine_count)]
     random.shuffle(routines)
     print(f"  Today is {weekday_name}")
     print(f"  Day vibe: {day_vibe}")
