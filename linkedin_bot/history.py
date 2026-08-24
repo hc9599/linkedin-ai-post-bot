@@ -12,6 +12,12 @@ import re
 from linkedin_bot.cleaning import strip_topic_line
 
 MAX_POSTS = 24
+_VIBE_MARKERS = {
+    "phone", "charger", "pizza", "leftover", "leftovers", "microwave",
+    "standup", "inbox", "laundry", "groceries", "airport", "commute",
+    "coffee", "toast", "gym", "sushi", "match", "highlights",
+}
+
 _STOP = {
     "a", "an", "the", "and", "or", "to", "of", "in", "on", "my", "i", "im",
     "is", "are", "from", "that", "this", "with", "while", "still", "just",
@@ -133,6 +139,19 @@ class PostHistory:
             print(f"History: {dropped} reused article(s), but only {len(unused)} unused — keeping full list")
         return posts
 
+    def used_vibe_markers(self) -> set[str]:
+        """Concrete scene nouns already used. Next hook cannot reuse these."""
+        used: set[str] = set()
+        for opener in self.recent_openers():
+            used |= opener_tokens(opener) & _VIBE_MARKERS
+        return used
+
+    def scene_blocked(self, scene: str) -> bool:
+        """True if this scene remixed a recent opener or a used vibe noun."""
+        if self.reused_opener(scene, threshold=0.40):
+            return True
+        return bool(opener_tokens(scene) & self.used_vibe_markers())
+
     def worn_opener_words(self) -> list[str]:
         """Words that showed up in 2+ recent first lines. Do not open with these again."""
         counts: dict[str, int] = {}
@@ -154,7 +173,8 @@ class PostHistory:
 
         lines = [
             "RECENT POSTS — do not repeat these.",
-            "First line must be a new life scene with new words. Not the office. Not standup + inbox + coffee.",
+            "First line must be a new life scene with new words. Not the office.",
+            "Do not reuse a vibe noun we already used (phone, charger, leftover, pizza, commute, etc.).",
         ]
         if topics:
             lines.append("Topics already used (pick a different article if the list has one):")
@@ -166,4 +186,7 @@ class PostHistory:
                 lines.append(f"- {opener}")
         if worn:
             lines.append("Do not open with these worn words: " + ", ".join(worn))
+        markers = self.used_vibe_markers()
+        if markers:
+            lines.append("Banned vibe nouns this run: " + ", ".join(sorted(markers)))
         return "\n".join(lines)

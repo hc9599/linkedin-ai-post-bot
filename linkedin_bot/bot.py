@@ -63,8 +63,8 @@ class DailyPostBot:
             print("No posts fetched, exiting.")
             return
 
-        hooks = fetch_world_hooks()
         history = PostHistory().load()
+        hooks = fetch_world_hooks(history=history)
         usable = [post for post in posts if not _is_trivia_title(post.title)]
         if len(usable) < 3:
             usable = posts

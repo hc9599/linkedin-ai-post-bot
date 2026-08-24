@@ -34,27 +34,33 @@ _UNSAFE = (
 
 # Safe any day. Life, not the office. No weekday names so we do not say Friday on a Monday.
 DAILY_LIFE_ANYDAY = [
-    "Unread group chat about last night's match. You keep it. You never open it.",
-    "Phone at 12 percent and the charger is in the other bag.",
     "Same traffic light twice. You were not even rushing.",
-    "Toast already cold. You still eat it.",
-    "Groceries still in the hallway bag.",
     "Neighbor drilling through a wall that did nothing to them.",
     "Rain starting the second you leave the building.",
     "Series paused on the 'are you still watching' screen.",
-    "Gym bag packed. Gym bag did not leave the chair.",
     "Delivery guy calling from a gate that has no nameplate.",
-    "Airport Wi-Fi deciding your login is a suggestion.",
     "Power flicker right as the kettle clicks.",
+    "Keys not on the hook. They never are.",
+    "Plant leaning like it wants a lawyer.",
+    "Elevator skipped your floor for sport.",
+    "Shoes by the door still wet.",
+    "Bus you just missed, still visible.",
+    "Same song stuck from yesterday.",
+    "Tea bag still in last night's mug.",
+    "Umbrella in the bag. Sun out.",
+    "Fridge making a new noise. You pretend not to hear it.",
+    "Parcel photo that is not your door.",
+    "Bookmark on a recipe you will not cook.",
+    "Neighbor's Wi-Fi name you keep almost joining.",
 ]
 
 # Mood of the calendar day. Life energy, not office furniture.
 DAY_VIBES = {
     0: (
         "Monday life hangover. Weekend still in your head. Alarm lost. "
-        "Leftover food, unread match chat, traffic, phone dying. "
-        "Casual, a bit late, a bit behind. Not an office tour. "
-        "No standup, inbox, Slack, badge, or meeting. No clock times."
+        "A bit late, a bit behind. Casual home or commute life. "
+        "Not an office tour. No standup, inbox, Slack, badge, or meeting. "
+        "No clock times. Do not reuse a scene noun from recent posts."
     ),
     1: (
         "Tuesday already-tired. Same leftovers. How is it Tuesday already. "
@@ -88,11 +94,11 @@ DAY_VIBES = {
 DAILY_LIFE_BY_WEEKDAY = {
     0: [
         "Alarm lost the argument. Weekend is still in the room.",
-        "Leftover takeout for breakfast. No notes.",
-        "Match highlights you swore you would watch. Still unopened.",
-        "Laundry pile looking at you like it pays rent.",
-        "Cab crawl that turned a short hop into a whole mood.",
-        "Phone died on the way and you found out late.",
+        "Keys not on the hook. Monday already winning.",
+        "Plant leaning like it paid rent and you did not.",
+        "Bus you just missed. You watch it leave.",
+        "Tea bag still in last night's mug.",
+        "Shoes by the door still wet from who-knows-when.",
     ],
     1: [
         "Same leftovers. Tuesday already feels used.",
@@ -211,7 +217,23 @@ def current_day_context() -> tuple[str, str, int]:
     return now.strftime("%A"), DAY_VIBES[weekday], weekday
 
 
-def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2) -> WorldHookSet:
+def _fresh_scenes(pool: list[str], history, limit: int) -> list[str]:
+    """Pick scenes that do not remix a recent opener or used vibe noun."""
+    if history is None:
+        chosen = list(pool)
+    else:
+        chosen = [scene for scene in pool if not history.scene_blocked(scene)]
+        blocked = len(pool) - len(chosen)
+        if blocked:
+            print(f"  Vibe filter: dropped {blocked} worn scene(s), {len(chosen)} left")
+        if len(chosen) < limit:
+            leftover = [scene for scene in pool if scene not in chosen]
+            chosen.extend(leftover)
+    random.shuffle(chosen)
+    return chosen[:limit]
+
+
+def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2, history=None) -> WorldHookSet:
     """
     Live world/tech/sport headlines if a feed works and topics are safe.
     Mix today's weekday life scenes with any-day life scenes. Shuffle so hooks stay random.
@@ -242,8 +264,8 @@ def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2) -> Wor
     weekday_name = now.strftime("%A")
     day_vibe = DAY_VIBES[weekday]
     weekday_pool = list(DAILY_LIFE_BY_WEEKDAY.get(weekday, []))
-    weekday_scenes = random.sample(weekday_pool, k=min(4, len(weekday_pool)))
-    extra = random.sample(DAILY_LIFE_ANYDAY, k=min(max(routine_count, 4), len(DAILY_LIFE_ANYDAY)))
+    weekday_scenes = _fresh_scenes(weekday_pool, history, 4)
+    extra = _fresh_scenes(DAILY_LIFE_ANYDAY, history, max(routine_count, 4))
     routines = weekday_scenes + extra
     random.shuffle(routines)
     print(f"  Today is {weekday_name}")

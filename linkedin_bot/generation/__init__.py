@@ -107,7 +107,9 @@ def _score_sample(
     if _OFFICE_HOOK_RE.search(first_line(text)):
         score -= 4
     if history and history.reused_opener(text):
-        score -= 5
+        score -= 8
+    if history and history.scene_blocked(first_line(text)):
+        score -= 6
     if history and history.reused_topic(_topic_line(text)):
         score -= 10
     if re.match(r"^\s*topic:\s*(did you know|ever wondered)\b", text, re.I):
@@ -444,20 +446,30 @@ REASON: <one short line>
         fallback = _heuristic_pick(samples, today_name, weekday, self._history)
         if not result:
             print("pick_best: Groq silent — using heuristic")
-            return self._prefer_fresh_topic(samples, fallback, today_name, weekday)
+            return self._finalize_pick(samples, fallback, today_name, weekday)
 
         cleaned = strip_think_blocks(result)
         print(f"pick_best: {cleaned.strip()}")
         match = _WINNER_RE.search(cleaned) or _SAMPLE_RE.search(cleaned)
         if not match:
             print("pick_best: could not parse WINNER — using heuristic")
-            return self._prefer_fresh_topic(samples, fallback, today_name, weekday)
+            return self._finalize_pick(samples, fallback, today_name, weekday)
 
         choice = int(match.group(1)) - 1
         if choice < 0 or choice >= len(samples) or not samples[choice].strip():
             print("pick_best: WINNER out of range — using heuristic")
             choice = fallback
-        return self._prefer_fresh_topic(samples, choice, today_name, weekday)
+        return self._finalize_pick(samples, choice, today_name, weekday)
+
+    def _finalize_pick(
+        self,
+        samples: list[str],
+        preferred: int,
+        today_name: str,
+        weekday: int,
+    ) -> int:
+        choice = self._prefer_fresh_topic(samples, preferred, today_name, weekday)
+        return self._prefer_fresh_opener(samples, choice, today_name, weekday)
 
     def _prefer_fresh_topic(
         self,
@@ -491,6 +503,47 @@ REASON: <one short line>
                 )
                 return index
         print("pick_best: every sample reused a topic — keeping original pick")
+        return preferred
+
+    def _prefer_fresh_opener(
+        self,
+        samples: list[str],
+        preferred: int,
+        today_name: str,
+        weekday: int,
+    ) -> int:
+        """If the winner remixed a used vibe, take the next best unused hook."""
+        history = self._history
+        if history is None:
+            return preferred
+        opener = first_line(samples[preferred])
+        if not history.reused_opener(samples[preferred]) and not history.scene_blocked(opener):
+            return preferred
+        titles = [_topic_line(sample) for sample in samples]
+        token_sets = [_title_tokens(title) for title in titles]
+        openers = [first_line(sample) for sample in samples]
+        ranked: list[tuple[int, int]] = []
+        for index, text in enumerate(samples):
+            siblings = [line for i, line in enumerate(openers) if i != index]
+            ranked.append((
+                _score_sample(
+                    text, titles, token_sets, index, today_name, weekday, history, siblings,
+                ),
+                index,
+            ))
+        ranked.sort(reverse=True)
+        for _score, index in ranked:
+            line = first_line(samples[index])
+            if history.reused_opener(samples[index]) or history.scene_blocked(line):
+                continue
+            if history.reused_topic(_topic_line(samples[index])):
+                continue
+            print(
+                f"pick_best: skipped reused vibe on sample {preferred + 1}, "
+                f"using sample {index + 1}"
+            )
+            return index
+        print("pick_best: every sample reused a vibe — keeping original pick")
         return preferred
 
     def critique(self, draft: str) -> str:
