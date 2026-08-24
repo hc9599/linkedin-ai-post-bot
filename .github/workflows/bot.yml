@@ -54,8 +54,9 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           LINKEDIN_TOKEN: ${{ secrets.LINKEDIN_TOKEN }}
           LINKEDIN_PERSON_ID: ${{ secrets.LINKEDIN_PERSON_ID }}
-          # Print the post only. Set to "false" when you want LinkedIn to go live.
-          DRY_RUN: "true"
+          # Live LinkedIn post. Set to "true" to print only.
+          DRY_RUN: "false"
+          IMAGE: "true"
         run: python -u script.py
 
       - name: Save post history
