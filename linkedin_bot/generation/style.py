@@ -286,6 +286,7 @@ BANNED_OPENERS = [
     "Any opener that defines a problem for 'the industry' instead of a thing you actually touch",
     "Any opener that makes a generic observation applying to all software development",
     "Any opener that starts explaining the article's product as if you shipped it",
+    "Standup / inbox / Slack / badge / calendar / fire drill as the first line",
     "As an Indian developer...",
     "In the Indian context...",
     "In today's climate...",
@@ -300,9 +301,9 @@ BANNED_OPENERS = [
 # ---------------------------------------------------------------
 OPENERS = [
     (
-        "Open on today's weekday vibe (Monday hectic inbox, Friday deploy nerves) "
-        "or a headline. Then land the .NET take. Slack energy, not a whitepaper. "
-        "Only name today's weekday. Generic coffee/microwave that works any day is a fail."
+        "Open on today's weekday life vibe (Monday leftover takeout, Friday dinner plans) "
+        "or a headline. Then land the .NET take. Phone-in-pocket energy, not a whitepaper. "
+        "Only name today's weekday. No office openers."
     ),
     (
         "Open with a headline jab ONLY if the analogy is obvious. Otherwise a routine. "
@@ -390,7 +391,7 @@ WIT_MODES = [
     {
         "name": "dry",
         "instruction": (
-            "One muttered standup aside. Not a punchline hunt. Then back to the take. "
+            "One muttered aside. Not a punchline hunt. Then back to the take. "
             "Do not write the words 'dry aside'."
         ),
     },

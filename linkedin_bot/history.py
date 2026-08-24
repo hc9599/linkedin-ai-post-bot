@@ -143,7 +143,7 @@ class PostHistory:
 
         lines = [
             "RECENT POSTS — do not repeat these.",
-            "First line must be a new scene with new words. Do not remix standup + inbox + coffee if those already ran.",
+            "First line must be a new life scene with new words. Not the office. Not standup + inbox + coffee.",
         ]
         if topics:
             lines.append("Topics already used (pick a different article if the list has one):")

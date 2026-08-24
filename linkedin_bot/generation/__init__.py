@@ -36,14 +36,18 @@ _CLOCK_RE = re.compile(
     re.IGNORECASE,
 )
 _VIBE_HINTS = {
-    0: ("inbox", "weekend", "standup", "monday", "fire drill", "week already"),
-    1: ("tuesday", "already behind", "leftover", "flaky"),
-    2: ("wednesday", "midweek", "hump", "red build", "coding block"),
-    3: ("thursday", "ship tomorrow", "almost friday", "review pile"),
-    4: ("friday", "deploy", "mentally gone"),
-    5: ("saturday", "prod check", "weekend laptop"),
-    6: ("sunday", "sunday scaries", "work laptop", "tomorrow's standup"),
+    0: ("weekend", "alarm", "leftover", "match", "laundry", "monday"),
+    1: ("tuesday", "leftover", "already", "sock"),
+    2: ("wednesday", "midweek", "hump", "weather"),
+    3: ("thursday", "almost friday", "weekend plans"),
+    4: ("friday", "dinner", "weekend bag"),
+    5: ("saturday", "errands", "laptop"),
+    6: ("sunday", "sunday scaries", "couch", "tomorrow"),
 }
+_OFFICE_HOOK_RE = re.compile(
+    r"\b(standup|stand-up|inbox|slack|badge|calendar|quick sync|fire drill|pr review)\b",
+    re.IGNORECASE,
+)
 
 
 def _topic_line(text: str) -> str:
@@ -99,6 +103,8 @@ def _score_sample(
     if "one dry aside" in body or "on the menu" in body:
         score -= 2
     if _CLOCK_RE.search(text):
+        score -= 4
+    if _OFFICE_HOOK_RE.search(first_line(text)):
         score -= 4
     if history and history.reused_opener(text):
         score -= 5
@@ -189,7 +195,7 @@ class PostGenerator:
         scene_text = (
             f"ASSIGNED OPENER SCENE (riff, do not copy word-for-word): {preferred_scene}"
             if preferred_scene
-            else "Pick one unused daily-life scene. Do not default to standup + inbox + coffee."
+            else "Pick one unused life scene (home, commute, food, sport, phone). Not the office."
         )
 
         prompt = f"""Today is {today}. Ghostwrite a LinkedIn post as if YOU are a senior C#/.NET \
@@ -220,10 +226,10 @@ headline if the analogy is obvious. Then post YOUR viewpoint on ONE .NET article
 You did not write the article. You did not ship their product. Do not rewrite their blog.
 
 DAY VIBE IS REQUIRED:
-- The first paragraph must feel like {today_name}, using the assigned scene if given.
-- Do not default to standup + inbox + coffee. That combo is worn.
-- Do not open on generic microwave / cold coffee unless you tie it to {today_name}.
-- If a coworker could paste the hook on Friday unchanged, rewrite it.
+- The first paragraph must feel like {today_name} in real life, using the assigned scene if given.
+- Open at home, on a commute, over food, a match chat, a dead phone — not the office.
+- Ban as openers: standup, inbox, Slack, badge, calendar invite, quick sync, fire drill.
+- If someone could paste the hook on Friday unchanged, rewrite it.
 
 NO CLOCK TIMES:
 - Do not write 10 am, 9:30, before noon, or any clock stamp.
@@ -410,13 +416,13 @@ Today is {today_name}.
 DAY VIBE: {day_vibe}
 
 Score in this order:
-1. DAY VIBE: hook feels like {today_name}. Reject generic coffee/microwave that works any day.
+1. DAY VIBE: hook feels like {today_name} in real life. Reject office openers (standup, inbox, Slack, badge).
 2. HUMAN 10: sounds typed on a phone. Not a PR, recipe, or copied hook line.
 3. ONE ARTICLE: reject drafts that mix a fact from a different article than their TOPIC line.
 4. LAYMAN 5: keeps a C# name plus one short gloss. Not a beginner lecture.
 5. Viewpoint, not an article rewrite. Real question at the end.
 6. Weekday names must be {today_name} or none. No Friday-deploy unless Friday.
-7. FRESH OPENER: reject first lines that remix recent posts (standup + inbox + coffee again).
+7. FRESH OPENER: reject first lines that remix recent posts or open in the office.
 8. NO CLOCK TIMES: reject 10 am / 9:30 / any clock stamp.
 
 Drafts:
@@ -459,7 +465,7 @@ REASON: <one short line>
             else (
                 f"TODAY IS {today_name}. DAY VIBE: {day_vibe} "
                 "Keep any opener that already feels like today. "
-                "Rewrite generic coffee/microwave that works any day."
+                "Rewrite office openers (standup, inbox, Slack) to a life scene."
             )
         )
         history_text = (
@@ -536,9 +542,9 @@ and "curious to hear".
 
 13. WEEKDAY / DAY VIBE — Today is {today_name}. Mood: {day_vibe} \
 If the draft names another weekday (especially Friday-deploy on a non-Friday), \
-rewrite it to {today_name} or drop the day name. If the opener is generic \
-microwave/coffee that works any day, rewrite it to a {today_name} scene. \
-Do not write the words "dry aside".
+rewrite it to {today_name} or drop the day name. If the opener is in the office \
+(standup, inbox, Slack, badge, quick sync, fire drill), rewrite it to a {today_name} \
+life scene. Do not write the words "dry aside".
 
 14. ONE ARTICLE — If the draft mixes a fact from a different article than the \
 TOPIC line (State.Message inside an xUnit post, ParallelMode inside an auth-metrics \
@@ -547,8 +553,8 @@ post), drop the leftover fact.
 15. NO CLOCK TIMES — Cut 10 am, 9:30, before noon, or any clock stamp. \
 "Already late" is fine. Do not imply when this post goes live.
 
-16. FRESH OPENER — If the first line remixed standup + inbox + coffee or matches \
-a recent opener, rewrite the first line to a new {today_name} scene.
+16. FRESH OPENER — If the first line matches a recent opener or starts in the \
+office, rewrite it to a new {today_name} life scene.
 
 ---
 

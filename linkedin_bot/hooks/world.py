@@ -32,93 +32,95 @@ _UNSAFE = (
     "children under", "minors",
 )
 
-# Safe any day. No weekday names so we do not say Friday on a Monday.
+# Safe any day. Life, not the office. No weekday names so we do not say Friday on a Monday.
 DAILY_LIFE_ANYDAY = [
-    "Coffee going cold while the build sits on 'restore'.",
     "Unread group chat about last night's match. You keep it. You never open it.",
-    "Airport Wi-Fi deciding your VPN is a suggestion.",
-    "Power flicker right as the build hits 99%.",
-    "Hybrid day: badge in, sit down, VPN dies.",
-    "Office microwave queue longer than the PR review.",
-    "Slack huddle with IPL or the Premier League muted in another tab.",
-    "Commute stretching a 20-minute hop into a standup from the cab.",
-    "Calendar saying 'focus time' while pings keep landing.",
-    "That one test that only fails on the pipeline.",
-    "Leaving on time and still hitting the same traffic light twice.",
+    "Phone at 12 percent and the charger is in the other bag.",
+    "Same traffic light twice. You were not even rushing.",
+    "Toast already cold. You still eat it.",
+    "Groceries still in the hallway bag.",
+    "Neighbor drilling through a wall that did nothing to them.",
+    "Rain starting the second you leave the building.",
+    "Series paused on the 'are you still watching' screen.",
+    "Gym bag packed. Gym bag did not leave the chair.",
+    "Delivery guy calling from a gate that has no nameplate.",
+    "Airport Wi-Fi deciding your login is a suggestion.",
+    "Power flicker right as the kettle clicks.",
 ]
 
-# Mood of the calendar day. Hook must feel like this, even if the weekday word is omitted.
+# Mood of the calendar day. Life energy, not office furniture.
 DAY_VIBES = {
     0: (
-        "Monday hectic office. Weekend inbox dump. Standup that should have been "
-        "a Slack. Already late before the first real coding hour. "
-        "Not relaxed. Not Friday-deploy. No clock times (no 10 am, no 9:30)."
+        "Monday life hangover. Weekend still in your head. Alarm lost. "
+        "Leftover food, unread match chat, traffic, phone dying. "
+        "Casual, a bit late, a bit behind. Not an office tour. "
+        "No standup, inbox, Slack, badge, or meeting. No clock times."
     ),
     1: (
-        "Tuesday already-behind. Monday leftovers still open. The flaky test came back. "
-        "The week has started for real. Not a fresh-start Monday. Not Friday-deploy."
+        "Tuesday already-tired. Same leftovers. How is it Tuesday already. "
+        "Week started for real. Still life, not a desk tour. "
+        "No standup or inbox dump. Not Friday-deploy."
     ),
     2: (
-        "Wednesday midweek grind. Calendar ate the only coding block. This is when "
-        "the red build likes to live. Hump day, not a restart and not a wind-down."
+        "Wednesday midweek slump. Forgot what day it is. Weather doing too much. "
+        "Halfway, not a restart and not a wind-down. Life scene, not a calendar."
     ),
     3: (
-        "Thursday almost-Friday pressure. People say ship tomorrow. Tomorrow is not "
-        "today. Do not celebrate. Do not write Friday-deploy jokes."
+        "Thursday almost-weekend itch. Plans starting to form. Not Friday yet. "
+        "Do not write Friday-deploy jokes. Keep it outside the office."
     ),
     4: (
-        "Friday deploy nerves. People are already mentally gone. Someone still wants "
-        "to click ship. Friday-deploy language is allowed today only."
+        "Friday brain already at dinner plans. People mentally gone. "
+        "Friday-deploy language is allowed today only, and only if it fits. "
+        "Prefer weekend-eve life over a war room."
     ),
     5: (
-        "Saturday should-not-be-here. A 'quick prod check' that is never quick. "
-        "Slightly annoyed you opened the laptop."
+        "Saturday should-be-off. Errands. A laptop you promised not to open. "
+        "Slightly annoyed you peeked anyway."
     ),
     6: (
-        "Sunday scaries. Work laptop already open. Tomorrow's standup is already "
-        "in your head. Quiet dread, not a Monday fire drill yet."
+        "Sunday scaries on the couch. Tomorrow already lurking. "
+        "Quiet dread, not a Monday fire drill. No standup."
     ),
 }
 
-# Only mix these in on that weekday. Always include them so the hook can sound like today.
+# Only mix these in on that weekday. Life scenes so the hook can sound like today.
 DAILY_LIFE_BY_WEEKDAY = {
     0: [
-        "Monday standup that should have been a message.",
-        "Inbox from the weekend pretending it is urgent.",
-        "First Slack of the week is already a fire drill.",
-        "Badge reader arguing with last week's access.",
-        "First calendar block already a 'quick sync'.",
-        "Weekend PR comments waiting like they slept there.",
-        "Commute cab, laptop on knees, VPN dying.",
-        "Desk still has Friday's sticky notes.",
+        "Alarm lost the argument. Weekend is still in the room.",
+        "Leftover takeout for breakfast. No notes.",
+        "Match highlights you swore you would watch. Still unopened.",
+        "Laundry pile looking at you like it pays rent.",
+        "Cab crawl that turned a short hop into a whole mood.",
+        "Phone died on the way and you found out late.",
     ],
     1: [
-        "Tuesday and the flaky test is already back.",
-        "Monday leftovers still sitting in the inbox.",
-        "Already behind and it is only Tuesday.",
+        "Same leftovers. Tuesday already feels used.",
+        "You blinked and Monday was gone.",
+        "That one sock from the weekend wash is still missing.",
     ],
     2: [
-        "Wednesday midweek CI. This is where the red build likes to live.",
-        "Hump-day calendar ate the only coding block.",
-        "Halfway through the week and the quiet hour is gone.",
+        "Hump-day weather cannot pick a side.",
+        "Forgot it was Wednesday until someone said it.",
+        "Midweek and the quiet hour never showed up.",
     ],
     3: [
-        "Thursday 'ship it tomorrow' pressure. Not tomorrow yet.",
+        "Thursday and weekend plans are still a group-chat maybe.",
         "Almost Friday. Nobody say it out loud.",
-        "Thursday afternoon and the review pile doubled.",
+        "You can taste Friday. It is not here.",
     ],
     4: [
-        "Friday deploy energy. Everyone knows better. Someone still clicks.",
-        "Friday afternoon CI. Nobody wants to own the red build.",
-        "Half the office already mentally gone. Prod is still here.",
+        "Friday brain already picking a place to eat.",
+        "Half your friends already mentally gone.",
+        "Weekend bag by the door. You are still here.",
     ],
     5: [
-        "Saturday and a 'quick prod check' that is never quick.",
-        "Weekend laptop. You promised you would not.",
+        "Saturday errands eating the only free block.",
+        "You promised the laptop would stay shut. It did not.",
     ],
     6: [
-        "Sunday evening already opening the work laptop.",
-        "Sunday scaries: tomorrow's standup is already in your head.",
+        "Sunday couch, tomorrow already tapping your shoulder.",
+        "Sunday scaries: you are mentally packing for a day that is not here yet.",
     ],
 }
 
@@ -142,11 +144,11 @@ class WorldHookSet:
             f"TODAY IS {self.weekday_name}.",
             f"DAY VIBE: {self.day_vibe}",
             (
-                f"The opener MUST feel like {self.weekday_name}. You do not have to say "
-                f"the word {self.weekday_name}, but a coworker should guess the day "
-                "from the scene. Prefer a weekday-specific scene over generic coffee "
-                "or microwave. If the hook could be pasted on any other weekday "
-                "unchanged, rewrite it."
+                f"The opener MUST feel like {self.weekday_name} in real life "
+                "(home, commute, food, sport, phone) — not the office. "
+                f"You do not have to say the word {self.weekday_name}. "
+                "No standup, inbox, Slack, badge, calendar invite, or PR review. "
+                "If the hook could be pasted on any other weekday unchanged, rewrite it."
             ),
             f"If you name a weekday, it must be {self.weekday_name}.",
             "Friday-deploy / Friday roulette language is ONLY allowed on Friday.",
@@ -212,7 +214,7 @@ def current_day_context() -> tuple[str, str, int]:
 def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2) -> WorldHookSet:
     """
     Live world/tech/sport headlines if a feed works and topics are safe.
-    Always include today's weekday scenes, plus a couple of any-day fallbacks.
+    Mix today's weekday life scenes with any-day life scenes. Shuffle so hooks stay random.
     """
     print("Fetching trending hooks (headlines + daily life)...")
     collected: list[WorldHeadline] = []
@@ -239,9 +241,11 @@ def fetch_world_hooks(*, headline_limit: int = 6, routine_count: int = 2) -> Wor
     weekday = now.weekday()
     weekday_name = now.strftime("%A")
     day_vibe = DAY_VIBES[weekday]
-    weekday_scenes = list(DAILY_LIFE_BY_WEEKDAY.get(weekday, []))
-    extra = random.sample(DAILY_LIFE_ANYDAY, k=min(routine_count, len(DAILY_LIFE_ANYDAY)))
+    weekday_pool = list(DAILY_LIFE_BY_WEEKDAY.get(weekday, []))
+    weekday_scenes = random.sample(weekday_pool, k=min(4, len(weekday_pool)))
+    extra = random.sample(DAILY_LIFE_ANYDAY, k=min(max(routine_count, 4), len(DAILY_LIFE_ANYDAY)))
     routines = weekday_scenes + extra
+    random.shuffle(routines)
     print(f"  Today is {weekday_name}")
     print(f"  Day vibe: {day_vibe}")
     print("  Daily-life scenes:")
