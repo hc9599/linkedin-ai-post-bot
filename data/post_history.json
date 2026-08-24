@@ -15,6 +15,14 @@
       "opener": "Standup is still running, coffee's gone cold, and my inbox is full of tickets from the weekend that somehow got marked urgent.",
       "source_link": "",
       "dry_run": true
+    },
+    {
+      "date": "2026-08-24",
+      "weekday": "Monday",
+      "topic": ".NET 10 dotnet tool exec: Pin the Version and Feed in CI",
+      "opener": "The first \"quick sync\" of the week turned into a fire drill when my inbox exploded with \"urgent\" tickets from the weekend, and the standup was still running in the background.",
+      "source_link": "https://dev.to/ssukhpinder/net-10-dotnet-tool-exec-pin-the-version-and-feed-in-ci-2jgl",
+      "dry_run": true
     }
   ]
 }
