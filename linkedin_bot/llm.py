@@ -40,7 +40,7 @@ class GroqClient:
     ) -> str | None:
         api_key = self._api_key if self._api_key is not None else groq_api_key()
         for model in self._models:
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     payload = {
                         "model": model,
@@ -55,6 +55,8 @@ class GroqClient:
                     if reasoning_effort is not None:
                         payload["reasoning_effort"] = reasoning_effort
 
+                    print(f"Groq: calling {model} (try {attempt + 1})...")
+                    started = time.monotonic()
                     response = http_session().post(
                         GROQ_API_URL,
                         headers={
@@ -62,12 +64,21 @@ class GroqClient:
                             "Content-Type": "application/json",
                         },
                         json=payload,
-                        timeout=30,
+                        timeout=45,
                     )
+                    elapsed = time.monotonic() - started
 
                     if response.status_code == 200:
-                        print(f"Groq: using model {model}")
-                        return response.json()["choices"][0]["message"]["content"].strip()
+                        raw = response.json()["choices"][0]["message"].get("content") or ""
+                        content = raw.strip()
+                        if not content:
+                            print(
+                                f"Groq: {model} empty after {elapsed:.1f}s "
+                                "(thinking ate the tokens) — next model"
+                            )
+                            break
+                        print(f"Groq: using {model} ({elapsed:.1f}s)")
+                        return content
 
                     # 400/404 means "this model name is wrong" — skip to the next model.
                     if response.status_code in (400, 404):
@@ -84,7 +95,7 @@ class GroqClient:
                 except Exception as e:
                     print(f"Groq [{model}] attempt {attempt + 1} exception: {e}")
 
-                time.sleep(2 ** attempt)
+                time.sleep(1)
 
         return None
 

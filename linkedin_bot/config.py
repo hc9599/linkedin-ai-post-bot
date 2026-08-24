@@ -8,8 +8,8 @@ import os
 
 # Groq is the AI service that writes the LinkedIn post.
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-# Try the bigger model first. If Groq retired it, fall back to the smaller one.
-GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+# Fast model first. 120b thinks so long that Actions looks stuck.
+GROQ_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]
 # Pretend to be a normal Chrome browser. Sites block "bot" names from GitHub servers.
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "

@@ -25,9 +25,7 @@ from linkedin_bot.hooks.world import WorldHookSet, current_day_context
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
 
-SAMPLE_COUNT = 3
-_WINNER_RE = re.compile(r"WINNER:\s*(\d+)", re.IGNORECASE)
-_SAMPLE_RE = re.compile(r"\b(?:sample|winner)\s*[:#-]?\s*(\d+)\b", re.IGNORECASE)
+SAMPLE_COUNT = 2
 _WEEKDAY_NAMES = (
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
 )
@@ -357,7 +355,7 @@ BANNED PHRASES — do not use any of these:
         result = self._llm.complete(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.88 if chosen_wit["name"] == "witty" else 0.80,
-            max_tokens=1000,
+            max_tokens=500,
         )
 
         if not result:
@@ -408,55 +406,10 @@ BANNED PHRASES — do not use any of these:
         if len(usable) == 1:
             return usable[0][0]
 
-        today_name, day_vibe, weekday = current_day_context()
-        packed = "\n\n".join(
-            f"SAMPLE {i + 1}:\n{text}" for i, text in enumerate(samples)
-        )
-        prompt = f"""Pick the ONE LinkedIn draft we should publish.
-
-Today is {today_name}.
-DAY VIBE: {day_vibe}
-
-Score in this order:
-1. DAY VIBE: hook feels like {today_name} in real life. Reject office openers (standup, inbox, Slack, badge).
-2. HUMAN 10: sounds typed on a phone. Not a PR, recipe, or copied hook line.
-3. ONE ARTICLE: reject drafts that mix a fact from a different article than their TOPIC line.
-4. LAYMAN 5: keeps a C# name plus one short gloss. Not a beginner lecture.
-5. Viewpoint, not an article rewrite. Real question at the end.
-6. Weekday names must be {today_name} or none. No Friday-deploy unless Friday.
-7. FRESH OPENER: reject first lines that remix recent posts or open in the office.
-8. NO CLOCK TIMES: reject 10 am / 9:30 / any clock stamp.
-9. FRESH TOPIC: reject a draft whose TOPIC was already used. Reject trivia (Did you know / Ever wondered).
-
-Drafts:
-{packed}
-
-Reply with exactly two lines and nothing else:
-WINNER: <number 1-{len(samples)}>
-REASON: <one short line>
-"""
-        result = self._llm.complete(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=300,
-        )
+        today_name, _day_vibe, weekday = current_day_context()
+        print("pick_best: scoring locally (skip Groq — it was hanging here)")
         fallback = _heuristic_pick(samples, today_name, weekday, self._history)
-        if not result:
-            print("pick_best: Groq silent — using heuristic")
-            return self._finalize_pick(samples, fallback, today_name, weekday)
-
-        cleaned = strip_think_blocks(result)
-        print(f"pick_best: {cleaned.strip()}")
-        match = _WINNER_RE.search(cleaned) or _SAMPLE_RE.search(cleaned)
-        if not match:
-            print("pick_best: could not parse WINNER — using heuristic")
-            return self._finalize_pick(samples, fallback, today_name, weekday)
-
-        choice = int(match.group(1)) - 1
-        if choice < 0 or choice >= len(samples) or not samples[choice].strip():
-            print("pick_best: WINNER out of range — using heuristic")
-            choice = fallback
-        return self._finalize_pick(samples, choice, today_name, weekday)
+        return self._finalize_pick(samples, fallback, today_name, weekday)
 
     def _finalize_pick(
         self,
@@ -655,7 +608,7 @@ Preserve the hashtag line at the bottom exactly as written: {REQUIRED_HASHTAGS}
         result = self._llm.complete(
             messages=[{"role": "user", "content": critique_prompt}],
             temperature=0.40,
-            max_tokens=1500,
+            max_tokens=600,
         )
 
         if not result:
