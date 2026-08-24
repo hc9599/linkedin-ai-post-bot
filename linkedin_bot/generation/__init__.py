@@ -20,6 +20,7 @@ from linkedin_bot.generation.style import (
     WIT_MODES,
     WORD_COUNTS,
 )
+from linkedin_bot.history import PostHistory, first_line, opener_overlap
 from linkedin_bot.hooks.world import WorldHookSet, current_day_context
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
@@ -29,6 +30,10 @@ _WINNER_RE = re.compile(r"WINNER:\s*(\d+)", re.IGNORECASE)
 _SAMPLE_RE = re.compile(r"\b(?:sample|winner)\s*[:#-]?\s*(\d+)\b", re.IGNORECASE)
 _WEEKDAY_NAMES = (
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+)
+_CLOCK_RE = re.compile(
+    r"\b(?:1[0-2]|[1-9])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?)\b",
+    re.IGNORECASE,
 )
 _VIBE_HINTS = {
     0: ("inbox", "weekend", "standup", "monday", "fire drill", "week already"),
@@ -50,7 +55,16 @@ def _title_tokens(title: str) -> set[str]:
     return {tok.lower() for tok in re.findall(r"[A-Za-z][A-Za-z0-9.]+", title) if len(tok) >= 5}
 
 
-def _score_sample(text: str, titles: list[str], token_sets: list[set[str]], index: int, today_name: str, weekday: int) -> int:
+def _score_sample(
+    text: str,
+    titles: list[str],
+    token_sets: list[set[str]],
+    index: int,
+    today_name: str,
+    weekday: int,
+    history: PostHistory | None = None,
+    sibling_openers: list[str] | None = None,
+) -> int:
     """Local backup when Groq does not return WINNER."""
     if not text.strip():
         return -10_000
@@ -84,16 +98,35 @@ def _score_sample(text: str, titles: list[str], token_sets: list[set[str]], inde
         score -= 4
     if "one dry aside" in body or "on the menu" in body:
         score -= 2
+    if _CLOCK_RE.search(text):
+        score -= 4
+    if history and history.reused_opener(text):
+        score -= 5
+    if history and history.reused_topic(_topic_line(text)):
+        score -= 2
+    for other in sibling_openers or []:
+        if other and opener_overlap(text, other) >= 0.55:
+            score -= 2
+            break
     return score
 
 
-def _heuristic_pick(samples: list[str], today_name: str, weekday: int) -> int:
+def _heuristic_pick(
+    samples: list[str],
+    today_name: str,
+    weekday: int,
+    history: PostHistory | None = None,
+) -> int:
     titles = [_topic_line(sample) for sample in samples]
     token_sets = [_title_tokens(title) for title in titles]
+    openers = [first_line(sample) for sample in samples]
     best_index = 0
     best_score = -10_000
     for index, text in enumerate(samples):
-        score = _score_sample(text, titles, token_sets, index, today_name, weekday)
+        siblings = [line for i, line in enumerate(openers) if i != index]
+        score = _score_sample(
+            text, titles, token_sets, index, today_name, weekday, history, siblings,
+        )
         print(f"  heuristic sample {index + 1}: {score}")
         if score > best_score:
             best_score = score
@@ -105,12 +138,20 @@ def _heuristic_pick(samples: list[str], today_name: str, weekday: int) -> int:
 class PostGenerator:
     """Asks Groq to write, then asks Groq to fact-check the vibe of the draft."""
 
-    def __init__(self, llm: LLMClient):
+    def __init__(self, llm: LLMClient, history: PostHistory | None = None):
         self._llm = llm
         self._wit_mode = WIT_MODES[0]
         self._hooks: WorldHookSet | None = None
+        self._history = history
 
-    def draft(self, posts: list[CandidatePost], hooks: WorldHookSet | None = None) -> str:
+    def draft(
+        self,
+        posts: list[CandidatePost],
+        hooks: WorldHookSet | None = None,
+        *,
+        preferred_scene: str | None = None,
+        avoid_openers: list[str] | None = None,
+    ) -> str:
         """First pass: pick one article and write a LinkedIn post in the daily style."""
         today = datetime.now().strftime("%A, %B %d")
         today_name, day_vibe, weekday = current_day_context()
@@ -140,6 +181,16 @@ class PostGenerator:
 
         banned_phrases_str = "\n".join(f"- {p}" for p in BANNED_PHRASES)
         banned_openers_str = "\n".join(f"- {p}" for p in BANNED_OPENERS)
+        history_text = (
+            self._history.prompt_block(avoid_openers)
+            if self._history
+            else "RECENT POSTS: none stored. Still write a fresh first line."
+        )
+        scene_text = (
+            f"ASSIGNED OPENER SCENE (riff, do not copy word-for-word): {preferred_scene}"
+            if preferred_scene
+            else "Pick one unused daily-life scene. Do not default to standup + inbox + coffee."
+        )
 
         prompt = f"""Today is {today}. Ghostwrite a LinkedIn post as if YOU are a senior C#/.NET \
 developer posting from your own account. 5+ years backend.
@@ -169,11 +220,18 @@ headline if the analogy is obvious. Then post YOUR viewpoint on ONE .NET article
 You did not write the article. You did not ship their product. Do not rewrite their blog.
 
 DAY VIBE IS REQUIRED:
-- The first paragraph must feel like {today_name}. Inbox/standup fire on Monday. \
-Already-behind on Tuesday. Midweek red build on Wednesday. Almost-Friday pressure \
-on Thursday. Deploy nerves on Friday. Should-not-be-here on the weekend.
+- The first paragraph must feel like {today_name}, using the assigned scene if given.
+- Do not default to standup + inbox + coffee. That combo is worn.
 - Do not open on generic microwave / cold coffee unless you tie it to {today_name}.
 - If a coworker could paste the hook on Friday unchanged, rewrite it.
+
+NO CLOCK TIMES:
+- Do not write 10 am, 9:30, before noon, or any clock stamp.
+- This post is not announcing when you sat down. "Already late" is fine.
+
+{scene_text}
+
+{history_text}
 
 ONE ARTICLE ONLY:
 - Every API, type, or tool name must come from the chosen TOPIC article.
@@ -304,15 +362,29 @@ BANNED PHRASES — do not use any of these:
         posts: list[CandidatePost],
         hooks: WorldHookSet | None = None,
         count: int = SAMPLE_COUNT,
+        history: PostHistory | None = None,
     ) -> tuple[list[str], list[dict]]:
-        """Write several drafts. Each call rerolls opener/wit so they are not clones."""
+        """Write several drafts. Each call gets its own scene so first lines differ."""
+        if history is not None:
+            self._history = history
         samples: list[str] = []
         wits: list[dict] = []
+        used_openers: list[str] = []
+        scenes = list(hooks.routines) if hooks else []
         for index in range(count):
             print(f"\n--- Sample {index + 1}/{count} ---")
-            text = strip_think_blocks(self.draft(posts, hooks))
+            scene = scenes[index] if index < len(scenes) else None
+            text = strip_think_blocks(
+                self.draft(
+                    posts,
+                    hooks,
+                    preferred_scene=scene,
+                    avoid_openers=used_openers,
+                )
+            )
             samples.append(text)
             wits.append(self._wit_mode)
+            used_openers.append(first_line(text))
             print(text)
         return samples, wits
 
@@ -344,6 +416,8 @@ Score in this order:
 4. LAYMAN 5: keeps a C# name plus one short gloss. Not a beginner lecture.
 5. Viewpoint, not an article rewrite. Real question at the end.
 6. Weekday names must be {today_name} or none. No Friday-deploy unless Friday.
+7. FRESH OPENER: reject first lines that remix recent posts (standup + inbox + coffee again).
+8. NO CLOCK TIMES: reject 10 am / 9:30 / any clock stamp.
 
 Drafts:
 {packed}
@@ -357,7 +431,7 @@ REASON: <one short line>
             temperature=0.0,
             max_tokens=300,
         )
-        fallback = _heuristic_pick(samples, today_name, weekday)
+        fallback = _heuristic_pick(samples, today_name, weekday, self._history)
         if not result:
             print("pick_best: Groq silent — using heuristic")
             return fallback
@@ -388,6 +462,11 @@ REASON: <one short line>
                 "Rewrite generic coffee/microwave that works any day."
             )
         )
+        history_text = (
+            self._history.prompt_block()
+            if self._history
+            else "RECENT POSTS: none stored."
+        )
         critique_prompt = f"""You are editing a LinkedIn post so a teammate would believe \
 a senior C#/.NET developer typed it on their phone - not a model, \
 not a press release, not a blog rewrite.
@@ -397,6 +476,8 @@ Rewrite anything that fails. If a section already sounds human and is their view
 HUMOR MODE ({wit['name']}): {wit['instruction']}
 
 {hooks_text}
+
+{history_text}
 
 DRAFT:
 {draft}
@@ -462,6 +543,12 @@ Do not write the words "dry aside".
 14. ONE ARTICLE — If the draft mixes a fact from a different article than the \
 TOPIC line (State.Message inside an xUnit post, ParallelMode inside an auth-metrics \
 post), drop the leftover fact.
+
+15. NO CLOCK TIMES — Cut 10 am, 9:30, before noon, or any clock stamp. \
+"Already late" is fine. Do not imply when this post goes live.
+
+16. FRESH OPENER — If the first line remixed standup + inbox + coffee or matches \
+a recent opener, rewrite the first line to a new {today_name} scene.
 
 ---
 

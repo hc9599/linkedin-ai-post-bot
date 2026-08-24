@@ -251,6 +251,11 @@ BANNED_PHRASES = [
     "I'm adding a",
     "one dry aside",
     "on the menu",
+    "10 am",
+    "10am",
+    "9 am",
+    "9am",
+    "before 10",
 ]
 
 # ---------------------------------------------------------------

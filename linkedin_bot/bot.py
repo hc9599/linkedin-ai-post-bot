@@ -10,11 +10,12 @@ from datetime import datetime
 from linkedin_bot.cleaning import default_cleaning_pipeline, strip_think_blocks, CleaningPipeline
 from linkedin_bot.config import env_flag
 from linkedin_bot.generation import PostGenerator
+from linkedin_bot.history import PostHistory
 from linkedin_bot.hooks.world import fetch_world_hooks
+from linkedin_bot.review import attach_source_credit, extract_topic_title, review_before_publish
 from linkedin_bot.images import ImageService, PollinationsImageRenderer
 from linkedin_bot.llm import GroqClient, LLMClient
 from linkedin_bot.publishing import LinkedInPublisher, Publisher
-from linkedin_bot.review import attach_source_credit, review_before_publish
 from linkedin_bot.sources import SourceAggregator
 from linkedin_bot.sources.devto import DevToSource
 from linkedin_bot.sources.hackernews import HackerNewsSource
@@ -54,9 +55,10 @@ class DailyPostBot:
             return
 
         hooks = fetch_world_hooks()
+        history = PostHistory().load()
 
         print("\nGenerating 5 sample posts...")
-        samples, wits = self._generator.draft_samples(posts, hooks)
+        samples, wits = self._generator.draft_samples(posts, hooks, history=history)
         winner = self._generator.pick_best(samples)
         self._generator._wit_mode = wits[winner]
         linkedin_content = samples[winner]
@@ -93,6 +95,15 @@ class DailyPostBot:
         print(f"Word count: {len(linkedin_content.split())}")
         print(f"Source: {source.title}")
         print(f"Link: {source.link}")
+
+        topic = extract_topic_title(draft_with_topic) or source.title
+        history.record(
+            topic=topic,
+            body=linkedin_content,
+            source_link=source.link,
+            dry_run=dry_run,
+        )
+        history.save()
 
         image_bytes = None
         if generate_image:

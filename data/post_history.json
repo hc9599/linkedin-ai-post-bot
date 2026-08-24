@@ -1,0 +1,20 @@
+{
+  "posts": [
+    {
+      "date": "2026-08-24",
+      "weekday": "Monday",
+      "topic": "xUnit 4 ParallelMode.All: Protect Shared State from Test Races",
+      "opener": "The office microwave line moves slower than my build queue, so I'm spotting race conditions like they're on the menu.",
+      "source_link": "https://dev.to/ssukhpinder/xunit-4-parallelmodeall-protect-shared-state-from-test-races-58jj",
+      "dry_run": true
+    },
+    {
+      "date": "2026-08-24",
+      "weekday": "Monday",
+      "topic": ".NET 11 Preview 7 Brings Updates across C#, ASP.NET Core, EF Core, and Windows Forms",
+      "opener": "Standup is still running, coffee's gone cold, and my inbox is full of tickets from the weekend that somehow got marked urgent.",
+      "source_link": "",
+      "dry_run": true
+    }
+  ]
+}

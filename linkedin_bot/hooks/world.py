@@ -51,8 +51,8 @@ DAILY_LIFE_ANYDAY = [
 DAY_VIBES = {
     0: (
         "Monday hectic office. Weekend inbox dump. Standup that should have been "
-        "a Slack. Already late before 10. Coffee cold because of meetings. "
-        "Not relaxed. Not Friday-deploy."
+        "a Slack. Already late before the first real coding hour. "
+        "Not relaxed. Not Friday-deploy. No clock times (no 10 am, no 9:30)."
     ),
     1: (
         "Tuesday already-behind. Monday leftovers still open. The flaky test came back. "
@@ -85,8 +85,12 @@ DAILY_LIFE_BY_WEEKDAY = {
     0: [
         "Monday standup that should have been a message.",
         "Inbox from the weekend pretending it is urgent.",
-        "Coffee already cold and standup is still going.",
         "First Slack of the week is already a fire drill.",
+        "Badge reader arguing with last week's access.",
+        "First calendar block already a 'quick sync'.",
+        "Weekend PR comments waiting like they slept there.",
+        "Commute cab, laptop on knees, VPN dying.",
+        "Desk still has Friday's sticky notes.",
     ],
     1: [
         "Tuesday and the flaky test is already back.",

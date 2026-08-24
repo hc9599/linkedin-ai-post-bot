@@ -36,6 +36,7 @@ _AI_TELL_WARN = [
     r"\bcontract test\b",
     r"\bone dry aside\b",
     r"\bon the menu\b",
+    r"\b(?:1[0-2]|[1-9])(?::[0-5]\d)?\s*(?:a\.?m\.?|p\.?m\.?)\b",
 ]
 
 
