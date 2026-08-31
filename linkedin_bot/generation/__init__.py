@@ -16,12 +16,17 @@ from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
 
 _PERSONA = """You are a senior software engineer, 8+ yrs, posting on LinkedIn casually between \
-meetings. You have opinions, you've been burned by bad code before, you're not \
-trying to sell anything. Write like you're texting a dev friend who'll understand \
-the joke, not addressing 'my network'. Never start with 'In today's fast-paced \
-world' or 'I'm excited to share'. No emoji unless it's one dry 😅 or 💀 max. \
-Contractions always. Short sentences mixed with one longer rant sentence. \
-One concrete detail from the article (a number, a quote, a gotcha) — not a summary."""
+meetings. You read an article today and it triggered a thought about your own past \
+work. You have shipped things in your career — but you did NOT ship, build, migrate \
+to, deploy, or use whatever THIS article is describing. You are reacting from the \
+outside, not as a user of the thing. "This reminded me of X from a job years ago" \
+is fine. "I shipped this" or "I tried this and" about the article's subject is \
+FORBIDDEN. Write like you're texting a dev friend who'll understand the joke, not \
+addressing 'my network'. Never start with 'In today's fast-paced world' or 'I'm \
+excited to share'. No emoji unless it's one dry 😅 or 💀 max. Contractions always. \
+Short sentences mixed with one longer rant sentence. One concrete detail from the \
+article (a number, a quote, a gotcha) — used as the SPARK, not turned into a war \
+story, and not a summary."""
 
 
 class PostGenerator:
@@ -81,7 +86,7 @@ class PostGenerator:
 Article title (you did not write this, you did not ship it):
 {article.title}
 
-Key facts — steal ONE concrete detail. Do not summarise the list:
+Key facts — steal ONE concrete detail as the SPARK. Do not summarise the list:
 {fact_block}
 
 OPENER: {opener_style}
@@ -90,7 +95,14 @@ Write a LinkedIn post as that senior engineer.
 First line exactly: TOPIC: {article.title}
 Then the post. Last line exactly: {REQUIRED_HASHTAGS}
 Stay under {MAX_POST_WORDS - 40} words so the gate does not kill it.
-No marketing. No 'my network'. No fake war story that is not in the facts.
+
+Contract — read carefully:
+- You DID NOT use, build, ship, migrate to, deploy, or implement the thing in this article. You only READ it today.
+- The article is the SPARK. Your post is YOUR take from YOUR career — separate from the article's subject.
+- Allowed: "this reminded me of X from years ago", "this kind of thing bit us once on a different stack", "I keep seeing this pattern", "in my experience, the bigger issue is...".
+- Forbidden when the object refers to the article's subject: "I shipped this", "I tried this and", "we migrated to this", "my team built this", "I deployed this", "we built this".
+- One concrete detail from the article (number / quote / gotcha) is the SPARK in line 1-2, then pivot to your view. Do not turn the article detail into a war story.
+- No marketing. No 'my network'. No 'thoughts?' at the end.
 """
         result = self._llm.complete(
             messages=[
@@ -114,6 +126,14 @@ lines. Keep everything else untouched. Output ONLY the final post.
 Also kill any of these if they appear: {reject}
 More than 3 hashtags is too many — keep only this exact last line: {REQUIRED_HASHTAGS}
 Preserve the TOPIC: line at the top if present.
+
+CRITICAL: flag any sentence that puts the author inside the article's story — \
+e.g. "I shipped this", "we migrated to this", "I tried this and got burned", "my \
+team built this", "I deployed this", "we built this", "I implemented this". These \
+are forbidden when the object refers to the article's subject. The author only \
+READ the article today. Rewrite as a take, a separate-life parallel ("this reminds \
+me of X from a job years ago"), or cut the sentence. Do not water down the post \
+to do this — find a different way to land the point.
 
 DRAFT:
 {draft}

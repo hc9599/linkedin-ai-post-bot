@@ -24,6 +24,12 @@ _AI_TELL_WARN = [
     r"\bwhen it comes to\b",
     r"\bin today's\b",
     r"\bgame-?changer\b",
+    # First-person claim phrases — author only READ the article. Warn (not kill) so we
+    # can see how often the post still leaks this pattern through Pass 3.
+    r"\bi shipped\b",
+    r"\bwe shipped\b",
+    r"\bmy team (built|shipped|deployed|migrated)\b",
+    r"\bi (built|tried|deployed|migrated|implemented) this\b",
 ]
 
 

@@ -94,6 +94,66 @@ def _body_without_hashtags(text: str) -> str:
     return body.strip()
 
 
+# First-person claim patterns. Match these as whole phrases, not as fragments.
+# Each entry is the regex pattern to apply to the post body.
+_FIRST_PERSON_CLAIMS = [
+    r"\bi shipped\b",
+    r"\bi built (this|it)\b",
+    r"\bi implemented (this|it)\b",
+    r"\bi deployed (this|it)\b",
+    r"\bi migrated to\b",
+    r"\bi tried (this|it) and\b",
+    r"\bi tested (this|it)\b",
+    r"\bwe shipped\b",
+    r"\bwe built (this|it)\b",
+    r"\bwe migrated to\b",
+    r"\bwe deployed\b",
+    r"\bmy team (built|shipped|deployed|migrated)\b",
+]
+
+
+def _title_keywords(article: CandidatePost) -> set[str]:
+    """Strip stop-words from the article title — these are the 'subject' tokens."""
+    return _tokens(article.title)
+
+
+def _sentence_contains(haystack: str, span: tuple[int, int]) -> str:
+    """Return the sentence containing the [start, end) character span."""
+    start = haystack.rfind(". ", 0, span[0])
+    start = 0 if start == -1 else start + 2
+    end_candidates = [
+        i for i in (haystack.find(". ", span[1]), haystack.find(".\n", span[1])) if i != -1
+    ]
+    end = min(end_candidates) + 1 if end_candidates else len(haystack)
+    return haystack[start:end].strip()
+
+
+def first_person_subject_claim(
+    body: str, article: CandidatePost
+) -> str | None:
+    """
+    Coarse pre-check: does the post claim personal experience with the article's subject?
+
+    Returns the offending sentence if a first-person claim is found AND the article's
+    title-keywords appear in the same sentence (rough proxy for "the verb's object is
+    the article"). Returns None otherwise — the LLM check (Pass 5) handles subtler cases.
+    """
+    keywords = _title_keywords(article)
+    if not keywords:
+        return None
+    for pattern in _FIRST_PERSON_CLAIMS:
+        match = re.search(pattern, body, flags=re.IGNORECASE)
+        if not match:
+            continue
+        sentence = _sentence_contains(body, match.span())
+        if not sentence:
+            continue
+        sentence_tokens = _tokens(sentence)
+        if sentence_tokens & keywords:
+            return sentence
+    return None
+
+
 def attach_source_credit(text: str, source: CandidatePost) -> str:
     """
     Stick the article name and URL on the post, just above the hashtags.
@@ -143,16 +203,23 @@ PASS
 or
 FAIL: <short reason in plain English>
 
-PASS only if all are true:
+PASS only if ALL are true:
 1. A C# or .NET developer would recognise this as their world.
 2. A reader can tell the take was sparked by that source article (a riff/opinion is enough; \
 it does not need to summarise the article).
-3. The post does not claim the author built or wrote the thing described in the source.
+3. The post does NOT claim the author built, shipped, deployed, migrated to, used, or \
+implemented the thing described in the source. Phrases like "I shipped this", "we migrated \
+to this", "my team built this", "I tried this and", "I deployed it last quarter" — when the \
+object of the verb refers to the source article's subject — MUST be absent. A sentence like \
+"this reminded me of a similar incident from my own career" is fine because the object is a \
+SEPARATE thing from the article.
+4. The post does not start with a banned AI opener ('In today's...', 'I came across...', \
+"Let's dive...", 'Most teams...', etc.) and reads like a real engineer's Slack message.
 """
     result = llm.complete(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,
-        max_tokens=80,
+        max_tokens=120,
     )
     if not result:
         return False, "checker did not answer — not publishing"
@@ -191,6 +258,13 @@ def review_before_publish(
     leftover = reject_hits(cleaned_post)
     if leftover:
         return None, f"Pass 3 reject-list survived: {', '.join(leftover)}"
+
+    bad_claim = first_person_subject_claim(body, source)
+    if bad_claim:
+        return None, (
+            "post claims experience with the article's subject "
+            f"(author only read the article): {bad_claim[:120]}"
+        )
 
     extra_tags = [
         tag for tag in re.findall(r"#\w+", cleaned_post) if tag not in HASHTAGS

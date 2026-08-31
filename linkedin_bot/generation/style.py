@@ -22,9 +22,11 @@ TOPIC_ANGLES = {
             "afternoon you already work, not a product tour."
         ),
         "audience_signal": (
-            "Sound like you tried the tool, or you know why you still will not. Peers, not a review site."
+            "Sound like you have an opinion on whether you'd try the tool or skip it — "
+            "speculation is fine, claiming you used this exact tool is not. Peers, not "
+            "a review site."
         ),
-        "avoid": "Do not write a product review or a feature walkthrough. Your workflow take only.",
+        "avoid": "Do not write a product review or a feature walkthrough. No 'I tried this tool' war story. Decide and move on.",
     },
     2: {  # Wednesday — architecture & engineering decisions
         "focus": (
@@ -52,11 +54,14 @@ TOPIC_ANGLES = {
             "breaks when the system is large. Be specific about the failure mode."
         ),
         "audience_signal": (
-            "Someone who has been paged should nod. Tutorial-speak is a fail."
+            "Another senior could nod from their own stack wars, even if they have not "
+            "touched this exact thing. Tutorial-speak is a fail."
         ),
         "avoid": (
             "Do not reference NAS, SMB, or internal product details. Do not paste the article. "
-            "Keep it any senior .NET backend person could own."
+            "Keep it any senior .NET backend person could own — without claiming they shipped "
+            "this specific system. Parallel from your own stack is welcome; claiming this "
+            "article's exact subject is not."
         ),
     },
     5: {  # Saturday — performance & internals
@@ -65,9 +70,15 @@ TOPIC_ANGLES = {
             "measure or change, not a concept name-drop."
         ),
         "audience_signal": (
-            "Show you have been bitten by allocations or pauses. Abstract 'performance matters' is a fail."
+            "If you have a real allocation/pause war story from your OWN work on a "
+            "different system, fine — share it. If not, take a view on what to measure "
+            "or change. Abstract 'performance matters' is a fail."
         ),
-        "avoid": "Do not lecture the concept from the article. Say what you would measure or change.",
+        "avoid": (
+            "Do not lecture the concept from the article. Do not invent a war story tied "
+            "to the article's exact subject (you did not use it). Take or measure, not "
+            "manufactured memory."
+        ),
     },
     6: {  # Sunday — new releases & future direction
         "focus": (
@@ -205,6 +216,31 @@ BANNED_PHRASES = [
     "enables you to",
     "enables developers",
     "you can now",
+    # First-person claim phrases — author only READ the article, not shipped/built it.
+    # Catch the common leak where the model writes "I shipped this" about the article's subject.
+    "i shipped",
+    "i shipped this",
+    "i built",
+    "i built this",
+    "i built it",
+    "i implemented",
+    "i implemented this",
+    "i deployed",
+    "i deployed this",
+    "i migrated to",
+    "i tried this",
+    "i tested this",
+    "we shipped",
+    "we shipped this",
+    "we built",
+    "we built this",
+    "we implemented",
+    "we migrated to",
+    "we deployed",
+    "my team built",
+    "my team shipped",
+    "my team deployed",
+    "my team migrated",
 ]
 
 # ---------------------------------------------------------------
@@ -260,6 +296,10 @@ OPENERS = [
         "Open with a hook a .NET person would smirk at (flaky CI, giant logs, Copilot "
         "narrating XML). Then land the actual take. Two sentences max for the hook."
     ),
+    (
+        "Open with one specific number or gotcha from the article as the hook, then pivot "
+        "to your view in the second line. Numbers stop the scroll; generic claims do not."
+    ),
 ]
 
 # ---------------------------------------------------------------
@@ -282,6 +322,10 @@ ENDINGS = [
     ),
     (
         "If humor is on, end on a dry line. If humor is off, just stop after the take."
+    ),
+    (
+        "End with a small prediction or 'watch this space' line — seniors bookmark predictions. "
+        "Do not ask a question. Do not invite 'thoughts?'."
     ),
 ]
 
@@ -357,6 +401,23 @@ PASS3_REJECT = [
     "let's dive in",
     "lets dive in",
     "thoughts?",
+    # First-person claim phrases — author only read the article. See BANNED_PHRASES for context.
+    "i shipped",
+    "i shipped this",
+    "i built this",
+    "i built it",
+    "i implemented this",
+    "i deployed this",
+    "i migrated to",
+    "i tried this",
+    "i tested this",
+    "we shipped",
+    "we shipped this",
+    "we built this",
+    "we migrated to",
+    "we deployed",
+    "my team built",
+    "my team shipped",
 ]
 
 # Pass 4 rotates these so openers do not clone the last few posts.
