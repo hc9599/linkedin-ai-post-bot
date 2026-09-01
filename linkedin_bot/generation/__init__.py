@@ -103,6 +103,7 @@ Contract — read carefully:
 - Forbidden when the object refers to the article's subject: "I shipped this", "I tried this and", "we migrated to this", "my team built this", "I deployed this", "we built this".
 - One concrete detail from the article (number / quote / gotcha) is the SPARK in line 1-2, then pivot to your view. Do not turn the article detail into a war story.
 - No marketing. No 'my network'. No 'thoughts?' at the end.
+- If you mention a date, write it like "28 July 2026" — never ISO (2026-07-28).
 """
         result = self._llm.complete(
             messages=[
@@ -126,6 +127,7 @@ lines. Keep everything else untouched. Output ONLY the final post.
 Also kill any of these if they appear: {reject}
 More than 3 hashtags is too many — keep only this exact last line: {REQUIRED_HASHTAGS}
 Preserve the TOPIC: line at the top if present.
+If a date appears, use spoken form like "28 July 2026", not ISO.
 
 CRITICAL: flag any sentence that puts the author inside the article's story — \
 e.g. "I shipped this", "we migrated to this", "I tried this and got burned", "my \

@@ -178,7 +178,10 @@ html, body {
    ============================================================ */
 
 .bg-dark {
-  background: #000000;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(88, 166, 255, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 50% 100%, rgba(255, 193, 7, 0.05) 0%, transparent 50%),
+    #000000;
 }
 
 .theme-code, .theme-flow {
@@ -300,9 +303,12 @@ html, body {
 }
 
 .detail-label {
-  color: #7ee787;
-  font-weight: 700;
-  margin-right: 6px;
+  color: #8b949e;
+  font-weight: 600;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 4px;
 }
 
 .compare-arrow {
@@ -356,12 +362,17 @@ html, body {
   display: flex;
   align-items: flex-start;
   gap: 24px;
-  background: #0d1117;
-  border: 2px solid #30363d;
-  border-left: 6px solid var(--accent);
-  border-radius: 14px;
+  background: rgba(22, 27, 34, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 4px solid var(--accent);
+  border-radius: 18px;
   padding: 22px 28px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.38);
+}
+
+.step-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .step-num {
@@ -433,7 +444,7 @@ html, body {
 /* process_flow — header stack + step list (no absolute title/sub overlap) */
 .theme-flow .flow-header {
   position: absolute;
-  top: 32px;
+  top: 40px;
   left: 48px;
   right: 48px;
   z-index: 5;
@@ -442,10 +453,10 @@ html, body {
 
 .theme-flow .flow-title {
   font-size: 42px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.12;
   color: #ffffff;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.6px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -530,10 +541,67 @@ html, body {
   overflow: hidden;
 }
 
-.theme-flow.flow-3 .flow-steps {
-  top: 210px;
+.theme-flow.flow-3 .flow-header {
+  top: 36px;
 }
 
 .theme-flow.flow-3 .flow-title {
-  font-size: 44px;
+  font-size: 46px;
+  max-height: 110px;
+}
+
+.theme-flow.flow-3 .flow-sub {
+  font-size: 20px;
+  margin-top: 10px;
+}
+
+.theme-flow.flow-3 .flow-steps {
+  top: 248px;
+  bottom: 88px;
+  gap: 0;
+  justify-content: space-between;
+}
+
+.theme-flow.flow-3 .flow-step {
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: center;
+  padding: 28px 32px;
+  gap: 28px;
+}
+
+.theme-flow.flow-3 .step-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.theme-flow.flow-3 .step-num {
+  width: 52px;
+  height: 52px;
+  font-size: 24px;
+}
+
+.theme-flow.flow-3 .step-text {
+  font-size: 32px;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.theme-flow.flow-3 .step-detail {
+  margin-top: 10px;
+  font-size: 22px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.theme-flow.flow-3 .flow-connector {
+  height: 14px;
+  flex-shrink: 0;
 }

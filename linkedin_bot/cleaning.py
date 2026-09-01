@@ -106,6 +106,24 @@ def clean_markdown(text):
     return text.strip()
 
 
+def normalize_spoken_dates(text: str) -> str:
+    """Rewrite ISO dates (2026-07-28) to spoken form (28 July 2026)."""
+    months = (
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    )
+
+    def repl(match: re.Match[str]) -> str:
+        year = int(match.group(1))
+        month = int(match.group(2))
+        day = int(match.group(3))
+        if month < 1 or month > 12 or day < 1 or day > 31:
+            return match.group(0)
+        return f"{day} {months[month - 1]} {year}"
+
+    return re.sub(r"\b(20\d{2})-(\d{2})-(\d{2})\b", repl, text)
+
+
 def normalize_ai_punctuation(text: str) -> str:
     """
     Models love em-dashes and curly quotes. Real LinkedIn posts usually do not.
@@ -200,6 +218,7 @@ def default_cleaning_pipeline() -> CleaningPipeline:
         strip_think_blocks,
         strip_topic_line,
         clean_markdown,
+        normalize_spoken_dates,
         normalize_ai_punctuation,
         enforce_hashtags,
         truncate_for_linkedin,
