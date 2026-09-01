@@ -213,6 +213,8 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
             return None
         ctx["subtitle"] = _truncate(plan.get("subtitle") or "", 80)
         ctx["steps"] = steps
+        count = len(steps)
+        ctx["flow_density"] = "flow-4" if count >= 4 else "flow-3"
         return ctx
 
     return None

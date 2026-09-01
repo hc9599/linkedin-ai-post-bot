@@ -429,3 +429,118 @@ html, body {
   border-radius: 999px;
   letter-spacing: 0.5px;
 }
+
+/* process_flow — header stack + step list (no absolute title/sub overlap) */
+.theme-flow .flow-header {
+  position: absolute;
+  top: 32px;
+  left: 48px;
+  right: 48px;
+  z-index: 5;
+  text-align: center;
+}
+
+.theme-flow .flow-title {
+  font-size: 42px;
+  font-weight: 800;
+  line-height: 1.12;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-height: 100px;
+}
+
+.theme-flow .flow-sub {
+  margin-top: 12px;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: #8b949e;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.theme-flow .flow-steps {
+  top: 200px;
+  gap: 10px;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.theme-flow.flow-4 .flow-header {
+  top: 28px;
+}
+
+.theme-flow.flow-4 .flow-title {
+  font-size: 36px;
+  max-height: 86px;
+}
+
+.theme-flow.flow-4 .flow-sub {
+  font-size: 17px;
+  margin-top: 8px;
+  -webkit-line-clamp: 1;
+}
+
+.theme-flow.flow-4 .flow-steps {
+  top: 188px;
+  bottom: 128px;
+  gap: 0;
+  justify-content: space-between;
+}
+
+.theme-flow.flow-4 .flow-step {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 14px 18px;
+  gap: 16px;
+  overflow: hidden;
+}
+
+.theme-flow.flow-4 .flow-connector {
+  height: 8px;
+  flex-shrink: 0;
+}
+
+.theme-flow.flow-4 .step-num {
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+}
+
+.theme-flow.flow-4 .step-text {
+  font-size: 21px;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.theme-flow.flow-4 .step-detail {
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.theme-flow.flow-4 .flow-connector {
+  height: 8px;
+  flex-shrink: 0;
+}
+
+.theme-flow.flow-3 .flow-steps {
+  top: 210px;
+}
+
+.theme-flow.flow-3 .flow-title {
+  font-size: 44px;
+}
