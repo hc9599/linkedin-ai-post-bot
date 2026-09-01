@@ -20,6 +20,8 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from linkedin_bot.infographic.highlight import highlight_csharp
+
 # Canvas matches LinkedIn 4:5 portrait. Hard-coded so a layout file cannot
 # drift away from the brand standard.
 CANVAS_W = 1080
@@ -101,12 +103,12 @@ def _strip_font_face(css: str) -> str:
     return re.sub(r"@font-face\s*\{[^}]*\}\s*", "", css, flags=re.DOTALL)
 
 
-def _sanitize_accent(accent: str) -> str:
+def _sanitize_accent(accent: str, default: str = "#FFC107") -> str:
     """Only allow #RRGGBB — used in CSS custom property and inline SVG."""
     value = (accent or "").strip()
     if re.fullmatch(r"#[0-9a-fA-F]{6}", value):
         return value
-    return "#58a6ff"
+    return default
 
 
 def _build_css(accent: str) -> str:
@@ -125,8 +127,82 @@ def _truncate(text: str, max_chars: int = 100) -> str:
     return text
 
 
+def _truncate_title(text: str, max_chars: int = 64) -> str:
+    if not text:
+        return "C# / .NET"
+    text = str(text).strip()
+    if len(text) > max_chars:
+        return text[: max_chars - 1].rstrip() + "…"
+    return text
+
+
+def _truncate_code(text: str, max_chars: int = 900) -> str:
+    if not text:
+        return ""
+    text = str(text).strip()
+    if len(text) > max_chars:
+        return text[: max_chars - 3].rstrip() + "..."
+    return text
+
+
+def _build_context(plan: dict, source_title: str | None) -> dict | None:
+    """Map a classified plan dict into Jinja2 template variables."""
+    layout_id = (plan.get("layout_id") or "process_flow").strip()
+    accent = _sanitize_accent(plan.get("accent") or "#FFC107")
+    ctx: dict = {
+        "css": _build_css(accent),
+        "accent": accent,
+        "title": _truncate_title(plan.get("title")),
+        "source": _truncate_source(source_title or ""),
+    }
+
+    if layout_id == "code_compare":
+        ctx.update({
+            "before_label": _truncate(plan.get("before_label") or "Traditional Approach", 40),
+            "after_label": _truncate(plan.get("after_label") or "Modern Approach", 40),
+            "before_code_html": highlight_csharp(_truncate_code(plan.get("before_code"))),
+            "after_code_html": highlight_csharp(_truncate_code(plan.get("after_code"))),
+        })
+        if not ctx["before_code_html"] or not ctx["after_code_html"]:
+            return None
+        return ctx
+
+    if layout_id == "code_tip":
+        ctx.update({
+            "subtitle": _truncate(plan.get("subtitle") or "", 80),
+            "code_html": highlight_csharp(_truncate_code(plan.get("code"))),
+            "caption": _truncate(plan.get("caption") or "", 120),
+        })
+        if not ctx["code_html"]:
+            return None
+        return ctx
+
+    if layout_id == "process_flow":
+        steps_raw = plan.get("steps") or []
+        steps = []
+        for i, step in enumerate(steps_raw[:4], start=1):
+            if not isinstance(step, dict):
+                continue
+            text = _truncate(step.get("text") or "", 80)
+            if not text:
+                continue
+            steps.append({
+                "number": i,
+                "label": _truncate(step.get("label") or f"Step {i}", 24),
+                "text": text,
+                "detail": _truncate(step.get("detail") or "", 60),
+            })
+        if len(steps) < 3:
+            return None
+        ctx["subtitle"] = _truncate(plan.get("subtitle") or "", 80)
+        ctx["steps"] = steps
+        return ctx
+
+    return None
+
+
 def _truncate_source(text: str, max_chars: int = 56) -> str:
-    """Footer source line — short ellipsis matches the SVG template behaviour."""
+    """Footer source line — short ellipsis for long article titles."""
     if not text:
         return ""
     text = str(text).strip()
@@ -184,25 +260,6 @@ def _shutdown_browser(pw) -> None:
     _browser = None
 
 
-def _compute_flow_vertical_arrows() -> list[int]:
-    """
-    flow_vertical stack: top=150px, bottom=130px reserved, gap=30px, 4 equal
-    flex panels. Arrow Y = center of each inter-panel gap minus half arrow (16px).
-    """
-    stack_top = 150
-    footer_reserve = 130
-    gap = 30
-    panel_count = 4
-    arrow_h = 32
-    stack_h = CANVAS_H - stack_top - footer_reserve
-    panel_h = (stack_h - (panel_count - 1) * gap) // panel_count
-    half_arrow = arrow_h // 2
-    return [
-        stack_top + (i + 1) * panel_h + i * gap + gap // 2 - half_arrow
-        for i in range(3)
-    ]
-
-
 _base_css_cache: str | None = None
 _base_css_lock = threading.Lock()
 _renderer_instance: "PlaywrightHtmlRenderer | None" = None
@@ -236,25 +293,13 @@ class PlaywrightHtmlRenderer:
 
     def render(self, plan: dict, source_title: str | None = None) -> bytes | None:
         """
-        Render the plan to PNG bytes.
-
-        plan keys:  layout_id, zones {hook, take, reason, closer}, accent (#RRGGBB)
-        Returns None on any failure — caller falls back to text-only post.
+        Render the plan to PNG bytes. Returns None on any failure.
         """
-        layout_id = (plan.get("layout_id") or "flow_vertical").strip()
-        zones = plan.get("zones") or {}
-        accent = _sanitize_accent(plan.get("accent") or "#58a6ff")
-
-        ctx = {
-            "css": _build_css(accent),
-            "accent": accent,
-            "hook":   _truncate(zones.get("hook", "")),
-            "take":   _truncate(zones.get("take", "")),
-            "reason": _truncate(zones.get("reason", "")),
-            "closer": _truncate(zones.get("closer", "")),
-            "source": _truncate_source(source_title or ""),
-            "arrows": _compute_flow_vertical_arrows() if layout_id == "flow_vertical" else [],
-        }
+        layout_id = (plan.get("layout_id") or "process_flow").strip()
+        ctx = _build_context(plan, source_title)
+        if ctx is None:
+            print(f"Could not build template context for {layout_id!r}")
+            return None
 
         try:
             template = _get_jinja().get_template(f"{layout_id}.html")

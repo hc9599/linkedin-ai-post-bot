@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>{{ css|safe }}</style>
+</head>
+<body class="theme-flow">
+<div class="bg bg-dark"></div>
+
+<h1 class="hero-title">{{ title }}</h1>
+<p class="hero-sub">{{ subtitle }}</p>
+
+<div class="flow-steps">
+  {% for step in steps %}
+  <div class="flow-step">
+    <div class="step-num">{{ step.number }}</div>
+    <div class="step-body">
+      <div class="step-label">{{ step.label }}</div>
+      <div class="step-text">{{ step.text }}</div>
+      {% if step.detail %}
+      <div class="step-detail">{{ step.detail }}</div>
+      {% endif %}
+    </div>
+  </div>
+  {% if not loop.last %}
+  <div class="flow-connector"></div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<div class="footer footer-code">
+  {% if source %}
+  <div class="source">
+    <div class="source-bar"></div>
+    <div class="source-text">source: {{ source }}</div>
+  </div>
+  {% endif %}
+  <div class="footer-row">
+    <span class="handle">C# / .NET · developer take</span>
+    <span class="badge-csharp">Flow</span>
+  </div>
+</div>
+</body>
+</html>

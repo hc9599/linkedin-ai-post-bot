@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>{{ css|safe }}</style>
+</head>
+<body class="theme-code">
+<div class="bg bg-dark"></div>
+
+<h1 class="hero-title">{{ title }}</h1>
+
+<div class="compare-stack">
+  <div class="code-panel">
+    <div class="panel-header">
+      <span class="panel-icon">💡</span>
+      <span class="panel-label">{{ before_label }}</span>
+    </div>
+    <pre class="code-block"><code>{{ before_code_html|safe }}</code></pre>
+  </div>
+
+  <svg class="compare-arrow" viewBox="0 0 120 200" width="120" height="200">
+    <defs>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="4" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <path d="M60 10 C95 60, 95 120, 60 170" fill="none" stroke="var(--accent)"
+          stroke-width="8" stroke-linecap="round" filter="url(#glow)"/>
+    <polygon points="45,165 75,165 60,190" fill="var(--accent)"/>
+  </svg>
+
+  <div class="code-panel code-panel-highlight">
+    <div class="panel-header">
+      <span class="panel-icon">🔥</span>
+      <span class="panel-label">{{ after_label }}</span>
+    </div>
+    <pre class="code-block"><code>{{ after_code_html|safe }}</code></pre>
+  </div>
+</div>
+
+<div class="footer footer-code">
+  {% if source %}
+  <div class="source">
+    <div class="source-bar"></div>
+    <div class="source-text">source: {{ source }}</div>
+  </div>
+  {% endif %}
+  <div class="footer-row">
+    <span class="handle">C# / .NET · developer take</span>
+    <span class="badge-csharp">C# Tip</span>
+  </div>
+</div>
+</body>
+</html>

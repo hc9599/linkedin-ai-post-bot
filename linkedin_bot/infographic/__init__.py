@@ -2,17 +2,17 @@
 Hand-authored HTML infographic pipeline.
 
 Public API:
-    render_infographic(layout_id, zones, accent, source) -> bytes | None
+    render_infographic(plan, source) -> bytes | None
 
-The LLM only picks `layout_id` and fills the four content zones; the look
-stays deterministic because every layout is a fixed Jinja2 template.
+The LLM picks layout + fills structured content (code blocks, flow steps,
+titles). Templates stay deterministic — design is not improvised per post.
 """
 from __future__ import annotations
 
 from .renderer import PlaywrightHtmlRenderer, get_renderer
 
-_VALID_LAYOUT_IDS = ("flow_vertical", "split_contrast", "cascade", "stack_compare")
-_DEFAULT_LAYOUT_ID = "flow_vertical"
+_VALID_LAYOUT_IDS = ("code_compare", "process_flow", "code_tip")
+_DEFAULT_LAYOUT_ID = "process_flow"
 
 
 def valid_layout_ids() -> list[str]:
@@ -20,29 +20,17 @@ def valid_layout_ids() -> list[str]:
     return list(_VALID_LAYOUT_IDS)
 
 
-def render_infographic(
-    layout_id: str,
-    zones: dict,
-    accent: str,
-    source: str = "",
-) -> bytes | None:
+def render_infographic(plan: dict, source: str = "") -> bytes | None:
     """
-    Render a 1080x1350 PNG infographic from structured content.
+    Render a 1080x1350 PNG infographic from a structured plan dict.
 
-    Args:
-        layout_id: one of valid_layout_ids(); unknown IDs fall back to flow_vertical.
-        zones: dict with keys "hook", "take", "reason", "closer".
-        accent: "#RRGGBB" hex color used as the layout's accent.
-        source: article title for the footer (may be empty).
-
+    plan keys vary by layout_id — see ImageService.classify_post().
     Returns PNG bytes or None if anything in the pipeline failed.
     """
-    chosen = layout_id if layout_id in _VALID_LAYOUT_IDS else _DEFAULT_LAYOUT_ID
-    plan = {
-        "layout_id": chosen,
-        "zones": zones,
-        "accent": accent,
-    }
+    layout_id = str(plan.get("layout_id") or _DEFAULT_LAYOUT_ID).strip()
+    if layout_id not in _VALID_LAYOUT_IDS:
+        layout_id = _DEFAULT_LAYOUT_ID
+    plan = {**plan, "layout_id": layout_id}
     return get_renderer().render(plan, source_title=source)
 
 
