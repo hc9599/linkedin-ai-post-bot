@@ -11,7 +11,7 @@ from linkedin_bot.cleaning import default_cleaning_pipeline, strip_think_blocks,
 from linkedin_bot.config import env_flag
 from linkedin_bot.generation import PostGenerator
 from linkedin_bot.generation.variance import LoopState, first_line
-from linkedin_bot.images import ImageService, PollinationsImageRenderer
+from linkedin_bot.images import ImageService
 from linkedin_bot.llm import GroqClient, LLMClient
 from linkedin_bot.publishing import LinkedInPublisher, Publisher
 from linkedin_bot.review import attach_source_credit, review_before_publish
@@ -126,7 +126,7 @@ def compose() -> DailyPostBot:
         generator=PostGenerator(llm),
         cleaner=default_cleaning_pipeline(),
         publisher=LinkedInPublisher(),
-        image_service=ImageService(llm, PollinationsImageRenderer()),
+        image_service=ImageService(llm),
         llm=llm,
     )
 

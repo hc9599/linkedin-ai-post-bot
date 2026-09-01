@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LinkedIn Infographic — split_contrast</title>
+<style>{{ css|safe }}</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<div class="brand">
+  <div class="brand-bar"></div>
+  <div class="brand-text">
+    C# / .NET
+    <span class="sub">before / after</span>
+  </div>
+</div>
+
+<style>
+  .title-strip {
+    position: absolute;
+    top: 130px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    z-index: 5;
+  }
+  .title-strip h1 {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #f0f6fc;
+    text-transform: uppercase;
+  }
+  .grid {
+    position: absolute;
+    top: 220px;
+    left: 60px;
+    right: 60px;
+    bottom: 140px;
+    display: grid;
+    grid-template-rows: 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    z-index: 1;
+  }
+  .grid .panel {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+  .grid .panel.right {
+    align-items: flex-end;
+    text-align: right;
+  }
+  .grid .panel.right .label,
+  .grid .panel.right .body {
+    text-align: right;
+    align-self: flex-end;
+    width: 100%;
+  }
+  .grid .panel.right .accent-bar {
+    left: auto;
+    right: 0;
+  }
+  .diagonal {
+    position: absolute;
+    left: 80px;
+    right: 80px;
+    top: 50%;
+    z-index: 2;
+    pointer-events: none;
+  }
+</style>
+
+<div class="title-strip">
+  <h1>BEFORE → AFTER</h1>
+</div>
+
+<div class="grid">
+  <div class="panel">
+    <div class="accent-bar"></div>
+    <div class="label">PROBLEM</div>
+    <div class="body">{{ hook }}</div>
+  </div>
+  <div class="panel right">
+    <div class="accent-bar"></div>
+    <div class="label">OUTCOME</div>
+    <div class="body">{{ take }}</div>
+  </div>
+  <div class="panel">
+    <div class="accent-bar"></div>
+    <div class="label">WHY</div>
+    <div class="body">{{ reason }}</div>
+  </div>
+  <div class="panel right">
+    <div class="accent-bar"></div>
+    <div class="label">SO WHAT</div>
+    <div class="body">{{ closer }}</div>
+  </div>
+</div>
+
+<svg class="diagonal" height="6" viewBox="0 0 1000 6" preserveAspectRatio="none">
+  <line x1="0" y1="6" x2="1000" y2="0" stroke="{{ accent }}" stroke-width="2" stroke-dasharray="4 6" opacity="0.55"/>
+</svg>
+
+<div class="footer">
+  {% if source %}
+  <div class="source">
+    <div class="source-bar"></div>
+    <div class="source-text">source: {{ source }}</div>
+  </div>
+  {% endif %}
+  <div class="handle">linkedin post  ·  human take</div>
+</div>
+</body>
+</html>

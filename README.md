@@ -26,6 +26,7 @@ If one news site blocks GitHub's servers, the bot retries and tries a backup URL
 | `linkedin_bot/` | The actual bot. |
 | `linkedin_bot/sources/` | Websites we read. |
 | `linkedin_bot/generation/` | How the AI is asked to write. |
+| `linkedin_bot/infographic/` | HTML infographic templates + Playwright renderer. |
 | `linkedin_bot/review.py` | Last check: credit the article, skip publish if it is not C#/.NET. |
 | `.github/workflows/bot.yml` | The weekday timer. |
 
@@ -41,16 +42,18 @@ Set these three. Do not put them in the code.
 
 ```bash
 pip install -r requirements.txt
+playwright install chromium
 set GROQ_API_KEY=...
-python script.py --dry-run
+python script.py --dry-run --image
 ```
 
 On PowerShell:
 
 ```powershell
 pip install -r requirements.txt
+playwright install chromium
 $env:GROQ_API_KEY = "..."
-python script.py --dry-run
+python script.py --dry-run --image
 ```
 
 Flags:

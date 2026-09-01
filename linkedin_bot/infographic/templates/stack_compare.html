@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LinkedIn Infographic — stack_compare</title>
+<style>{{ css|safe }}</style>
+</head>
+<body>
+<div class="bg"></div>
+
+<div class="brand">
+  <div class="brand-bar"></div>
+  <div class="brand-text">
+    C# / .NET
+    <span class="sub">layered build-up</span>
+  </div>
+</div>
+
+<style>
+  .eyebrow {
+    position: absolute;
+    top: 150px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 4px;
+    color: #8b949e;
+    text-transform: uppercase;
+    z-index: 5;
+  }
+  .fan {
+    position: absolute;
+    top: 240px;
+    left: 0;
+    right: 0;
+    bottom: 140px;
+    z-index: 1;
+  }
+  .fan .card {
+    position: absolute;
+    width: 320px;
+    height: 520px;
+    background: #161b22;
+    border: 1.5px solid #30363d;
+    border-radius: 14px;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+  }
+  .fan .card.hero {
+    height: 560px;
+    border-color: var(--accent);
+    border-width: 2px;
+  }
+  .fan .card .label {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #8b949e;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .fan .card.hero .label {
+    color: var(--accent);
+    font-size: 16px;
+  }
+  .fan .card .body {
+    font-weight: 600;
+    color: #f0f6fc;
+    line-height: 1.2;
+    word-break: break-word;
+    font-size: 26px;
+    display: -webkit-box;
+    -webkit-line-clamp: 6;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .fan .card.hero .body {
+    font-size: 30px;
+  }
+</style>
+
+<div class="eyebrow">LAYERED BUILD-UP</div>
+
+<div class="fan">
+  <!-- Render right-to-left so TAKE (rightmost) paints last and sits on top. -->
+  <div class="card"     style="left: 60px;  top: 40px; transform: rotate(-6deg); z-index: 1;">
+    <div class="label">STEP 1</div>
+    <div class="body">{{ hook }}</div>
+  </div>
+  <div class="card"     style="left: 280px; top: 40px; transform: rotate(-2deg); z-index: 2;">
+    <div class="label">STEP 2</div>
+    <div class="body">{{ reason }}</div>
+  </div>
+  <div class="card"     style="left: 500px; top: 40px; transform: rotate(2deg);  z-index: 3;">
+    <div class="label">STEP 3</div>
+    <div class="body">{{ closer }}</div>
+  </div>
+  <div class="card hero" style="left: 720px; top: 20px; transform: rotate(6deg);  z-index: 4;">
+    <div class="label">TAKE</div>
+    <div class="body">{{ take }}</div>
+  </div>
+</div>
+
+<div class="footer">
+  {% if source %}
+  <div class="source">
+    <div class="source-bar"></div>
+    <div class="source-text">source: {{ source }}</div>
+  </div>
+  {% endif %}
+  <div class="handle">linkedin post  ·  human take</div>
+</div>
+</body>
+</html>
