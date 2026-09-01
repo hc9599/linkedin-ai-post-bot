@@ -409,7 +409,8 @@ class ImageService:
             "  caption — plain English why this matters\n"
             "  subtitle — optional one-line context\n\n"
             "process_flow fields:\n"
-            "  steps — 3–4 objects: label, text (headline), detail (layman verbiage AFTER the step)\n"
+            "  steps — 3–4 objects: text (headline), detail (plain-English explanation)\n"
+            "  Do NOT put step numbers in text — the layout renders numbers automatically.\n"
             "  subtitle — optional flow context\n"
         )
         if strict:

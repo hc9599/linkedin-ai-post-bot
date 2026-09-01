@@ -167,6 +167,14 @@ def _strip_step_prefix(text: str) -> str:
     return _STEP_PREFIX_RE.sub("", text).strip()
 
 
+def _strip_leading_step_number(text: str, step_num: int) -> str:
+    cleaned = _strip_step_prefix(text)
+    match = re.match(rf"^{step_num}\s*[.:)\-]\s*", cleaned)
+    if match:
+        return cleaned[match.end():].strip()
+    return cleaned
+
+
 def _build_context(plan: dict, source_title: str | None) -> dict | None:
     """Map a classified plan dict into Jinja2 template variables."""
     layout_id = (plan.get("layout_id") or "process_flow").strip()
@@ -206,15 +214,11 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
         for i, step in enumerate(steps_raw[:4], start=1):
             if not isinstance(step, dict):
                 continue
-            text = _strip_step_prefix(_truncate(step.get("text") or "", 100))
+            text = _strip_leading_step_number(_truncate(step.get("text") or "", 100), i)
             if not text:
                 continue
-            label = _truncate(step.get("label") or f"Step {i}", 24)
-            if label.upper().startswith("STEP"):
-                label = ""
             steps.append({
                 "number": i,
-                "label": label,
                 "text": text,
                 "detail": _truncate(step.get("detail") or "", 160),
             })

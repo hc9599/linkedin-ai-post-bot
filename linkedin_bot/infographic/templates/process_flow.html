@@ -20,11 +20,8 @@
   <div class="flow-step">
     <div class="step-num">{{ step.number }}</div>
     <div class="step-body">
-      {% if step.label and not step.label.startswith('STEP') %}
-      <div class="step-label">{{ step.label }}</div>
-      {% endif %}
       <div class="step-text">{{ step.text }}</div>
-      <div class="step-detail"><span class="detail-label">In plain terms:</span> {{ step.detail }}</div>
+      <div class="step-detail">{{ step.detail }}</div>
     </div>
   </div>
   {% if not loop.last %}
