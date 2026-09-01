@@ -160,6 +160,13 @@ def _highlight_code(code: str, max_lines: int = 8) -> str:
     return highlighted
 
 
+_STEP_PREFIX_RE = re.compile(r"^STEP\s*\d+\s*:?\s*", re.IGNORECASE)
+
+
+def _strip_step_prefix(text: str) -> str:
+    return _STEP_PREFIX_RE.sub("", text).strip()
+
+
 def _build_context(plan: dict, source_title: str | None) -> dict | None:
     """Map a classified plan dict into Jinja2 template variables."""
     layout_id = (plan.get("layout_id") or "process_flow").strip()
@@ -168,7 +175,6 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
         "css": _build_css(accent),
         "accent": accent,
         "title": _truncate_title(plan.get("title")),
-        "source": _truncate_source(source_title or ""),
     }
 
     if layout_id == "code_compare":
@@ -200,14 +206,17 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
         for i, step in enumerate(steps_raw[:4], start=1):
             if not isinstance(step, dict):
                 continue
-            text = _truncate(step.get("text") or "", 80)
+            text = _strip_step_prefix(_truncate(step.get("text") or "", 100))
             if not text:
                 continue
+            label = _truncate(step.get("label") or f"Step {i}", 24)
+            if label.upper().startswith("STEP"):
+                label = ""
             steps.append({
                 "number": i,
-                "label": _truncate(step.get("label") or f"Step {i}", 24),
+                "label": label,
                 "text": text,
-                "detail": _truncate(step.get("detail") or "", 140),
+                "detail": _truncate(step.get("detail") or "", 160),
             })
         if len(steps) < 3:
             return None
@@ -218,16 +227,6 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
         return ctx
 
     return None
-
-
-def _truncate_source(text: str, max_chars: int = 56) -> str:
-    """Footer source line — short ellipsis for long article titles."""
-    if not text:
-        return ""
-    text = str(text).strip()
-    if len(text) > max_chars:
-        return text[: max_chars - 3].rstrip() + "..."
-    return text
 
 
 # ----------------------- Playwright singleton -----------------------
