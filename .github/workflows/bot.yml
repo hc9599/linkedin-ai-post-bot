@@ -49,4 +49,4 @@ jobs:
           LINKEDIN_TOKEN: ${{ secrets.LINKEDIN_TOKEN }}
           LINKEDIN_PERSON_ID: ${{ secrets.LINKEDIN_PERSON_ID }}
           DRY_RUN: "false"
-        run: python -u script.py
+        run: python -u script.py --image enable
