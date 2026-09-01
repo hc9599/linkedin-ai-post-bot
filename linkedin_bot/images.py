@@ -30,9 +30,57 @@ _OVERLAP_STOPWORDS = frozenset({
 
 _LAYOUT_FALLBACK_ORDER: dict[str, list[str]] = {
     "code_compare": ["code_compare", "code_tip", "process_flow"],
-    "code_tip": ["code_tip", "code_compare", "process_flow"],
-    "process_flow": ["process_flow", "code_tip", "code_compare"],
+    "code_tip": ["code_tip", "process_flow", "code_compare"],
+    "process_flow": ["process_flow"],
 }
+
+_REFLECTIVE_MARKERS = (
+    "in my experience",
+    "reminds me",
+    "learned",
+    "years ago",
+    "funny how",
+    "just a reminder",
+    "mental overhead",
+    "past project",
+    "syntactic sugar",
+    "shiny",
+)
+
+_GIBBERISH_CODE_RE = re.compile(
+    r"@@HL\d|/\*\s*\.\.\.|//\s*\.\.\.\s*\^|\^\d+\s*\^|//\s*\.\.\.\s*if\s*\("
+)
+
+
+def _post_is_reflective(post_content: str) -> bool:
+    """
+    Experience/opinion posts fit process_flow, not before/after code panels.
+    """
+    lower = post_content.lower()
+    marker_hits = sum(1 for m in _REFLECTIVE_MARKERS if m in lower)
+    paragraph_count = len([
+        p for p in post_content.split("\n\n")
+        if p.strip() and not p.strip().startswith("#")
+    ])
+    return marker_hits >= 2 or (marker_hits >= 1 and paragraph_count >= 3)
+
+
+def _fit_code_lines(code: str, max_lines: int = 8) -> str:
+    lines = (code or "").strip().splitlines()
+    return "\n".join(lines[:max_lines]).strip()
+
+
+def _code_looks_clean(code: str) -> tuple[bool, str]:
+    if not code or not code.strip():
+        return False, "code block is empty"
+    if _GIBBERISH_CODE_RE.search(code):
+        return False, "code contains truncated or corrupted lines — rewrite complete lines only"
+    if "@@HL" in code:
+        return False, "code contains placeholder leak markers"
+    lines = code.strip().splitlines()
+    if len(lines) > 10:
+        return False, "code block too long (max 10 lines)"
+    return True, ""
 
 
 def _overlap_tokens(text: str) -> set[str]:
@@ -119,6 +167,10 @@ def _plan_quality(plan: dict) -> tuple[bool, str]:
         after = str(plan.get("after_code") or "")
         if not before or not after:
             return False, "both before_code and after_code are required"
+        for label, block in ("before_code", before), ("after_code", after):
+            ok, reason = _code_looks_clean(block)
+            if not ok:
+                return False, f"{label}: {reason}"
         if not _code_has_layman_comment(before):
             return False, "before_code needs a // layman comment"
         if not _code_has_layman_comment(after):
@@ -133,6 +185,9 @@ def _plan_quality(plan: dict) -> tuple[bool, str]:
         code = str(plan.get("code") or "")
         if not code:
             return False, "code is required"
+        ok, reason = _code_looks_clean(code)
+        if not ok:
+            return False, reason
         if not _code_has_layman_comment(code):
             return False, "code needs at least one // layman comment"
         if len(str(plan.get("caption") or "")) < 15:
@@ -193,15 +248,15 @@ def _normalize_plan(data: dict, layout_id: str) -> dict | None:
     if layout_id == "code_compare":
         plan["before_label"] = str(data.get("before_label") or "Before").strip()[:40]
         plan["after_label"] = str(data.get("after_label") or "After").strip()[:40]
-        plan["before_code"] = str(data.get("before_code") or "").strip()[:900]
-        plan["after_code"] = str(data.get("after_code") or "").strip()[:900]
+        plan["before_code"] = _fit_code_lines(str(data.get("before_code") or ""), max_lines=8)
+        plan["after_code"] = _fit_code_lines(str(data.get("after_code") or ""), max_lines=6)
         plan["before_verbiage"] = str(data.get("before_verbiage") or "").strip()[:160]
         plan["after_verbiage"] = str(data.get("after_verbiage") or "").strip()[:160]
         if not plan["before_code"] or not plan["after_code"]:
             return None
 
     elif layout_id == "code_tip":
-        plan["code"] = str(data.get("code") or "").strip()[:900]
+        plan["code"] = _fit_code_lines(str(data.get("code") or ""), max_lines=10)
         plan["caption"] = str(data.get("caption") or "").strip()[:160]
         if not plan["code"]:
             return None
@@ -288,15 +343,23 @@ class ImageService:
         """
         Read the post and pick the best infographic format before generating content.
         """
+        if _post_is_reflective(post_content):
+            print(
+                "Infographic assessment: process_flow — "
+                "reflective/experience post (not a code tutorial)"
+            )
+            return "process_flow"
+
         allowed = valid_layout_ids()
         system = (
             "You classify a C#/.NET LinkedIn post for infographic layout. "
             'Output ONLY JSON: {"layout_id": "...", "reason": "one sentence"}.\n\n'
             f"layout_id MUST be one of: {', '.join(allowed)}.\n\n"
-            "- code_compare: post contrasts old vs new syntax, API, or pattern.\n"
-            "- code_tip: post focuses on one snippet, API call, or technique.\n"
-            "- process_flow: post explains steps, architecture, rollout, or a chain "
-            "of ideas without a clear before/after code pair."
+            "- code_compare: ONLY when the post is a clear OLD vs NEW code tutorial "
+            "with two contrasting snippets. NOT for opinion or war-story posts.\n"
+            "- code_tip: post focuses on one API, snippet, or technique to copy.\n"
+            "- process_flow: post explains steps, architecture, lessons learned, "
+            "multiple themes, or experience/reflection without a clean code pair."
         )
         raw = self._llm.complete(
             messages=[
@@ -337,7 +400,8 @@ class ImageService:
             "4. accent = #RRGGBB (gold #FFC107 for code layouts).\n\n"
             "code_compare fields:\n"
             "  before_label, after_label (short, can be Before/After)\n"
-            "  before_code, after_code — minimal C# with // layman comments, \\n for newlines\n"
+            "  before_code, after_code — max 8 lines each, complete lines only, "
+            "C# with // layman comments, \\n for newlines. No ... truncation.\n"
             "  before_verbiage — plain English sentence under the BEFORE panel\n"
             "  after_verbiage — plain English sentence under the AFTER panel\n\n"
             "code_tip fields:\n"

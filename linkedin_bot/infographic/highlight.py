@@ -1,8 +1,8 @@
 """
 Minimal C# syntax highlighter for infographic code panels.
 
-Escapes HTML first, then wraps tokens in spans. No external deps — safe for
-Playwright inline HTML renders.
+Escapes HTML first, then wraps tokens in spans. Placeholder keys use private-use
+Unicode so the word-color pass cannot corrupt them (the old @@HL0@@ keys leaked).
 """
 from __future__ import annotations
 
@@ -26,6 +26,18 @@ _KEYWORDS = frozenset({
 _STRING_RE = re.compile(r'(@?"(?:\\.|[^"\\])*")')
 _COMMENT_RE = re.compile(r"(//[^\n]*|/\*.*?\*/)", re.DOTALL)
 _WORD_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+_PLACEHOLDER_RE = re.compile(r"\uE000\d{4}\uE001")
+_LEAK_MARKERS = ("\uE000", "@@HL")
+
+
+def _plain_code_html(code: str) -> str:
+    """Unhighlighted fallback — always safe to render."""
+    return html.escape(code.strip())
+
+
+def highlight_is_clean(html_out: str) -> bool:
+    """True when highlighter output has no leaked placeholder tokens."""
+    return not any(marker in html_out for marker in _LEAK_MARKERS)
 
 
 def highlight_csharp(code: str) -> str:
@@ -38,7 +50,7 @@ def highlight_csharp(code: str) -> str:
 
     def _stash(match: re.Match[str], css_class: str) -> str:
         nonlocal counter
-        key = f"@@HL{counter}@@"
+        key = f"\uE000{counter:04d}\uE001"
         counter += 1
         placeholders[key] = f'<span class="{css_class}">{match.group(0)}</span>'
         return key
@@ -56,5 +68,10 @@ def highlight_csharp(code: str) -> str:
 
     text = _WORD_RE.sub(_color_word, text)
     for key, value in placeholders.items():
+        if key not in text:
+            return _plain_code_html(code)
         text = text.replace(key, value)
+
+    if _PLACEHOLDER_RE.search(text) or not highlight_is_clean(text):
+        return _plain_code_html(code)
     return text

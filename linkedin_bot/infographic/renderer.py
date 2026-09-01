@@ -20,7 +20,11 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from linkedin_bot.infographic.highlight import highlight_csharp
+from linkedin_bot.infographic.highlight import (
+    _plain_code_html,
+    highlight_csharp,
+    highlight_is_clean,
+)
 
 # Canvas matches LinkedIn 4:5 portrait. Hard-coded so a layout file cannot
 # drift away from the brand standard.
@@ -136,13 +140,24 @@ def _truncate_title(text: str, max_chars: int = 64) -> str:
     return text
 
 
-def _truncate_code(text: str, max_chars: int = 900) -> str:
+def _truncate_code(text: str, max_lines: int = 8) -> str:
+    """Keep whole lines only — never truncate mid-line in a code panel."""
     if not text:
         return ""
-    text = str(text).strip()
-    if len(text) > max_chars:
-        return text[: max_chars - 3].rstrip() + "..."
-    return text
+    lines = str(text).strip().splitlines()
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+    return "\n".join(lines)
+
+
+def _highlight_code(code: str, max_lines: int = 8) -> str:
+    trimmed = _truncate_code(code, max_lines=max_lines)
+    if not trimmed:
+        return ""
+    highlighted = highlight_csharp(trimmed)
+    if not highlight_is_clean(highlighted):
+        return _plain_code_html(trimmed)
+    return highlighted
 
 
 def _build_context(plan: dict, source_title: str | None) -> dict | None:
@@ -160,8 +175,8 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
         ctx.update({
             "before_label": _truncate(plan.get("before_label") or "Before", 40),
             "after_label": _truncate(plan.get("after_label") or "After", 40),
-            "before_code_html": highlight_csharp(_truncate_code(plan.get("before_code"))),
-            "after_code_html": highlight_csharp(_truncate_code(plan.get("after_code"))),
+            "before_code_html": _highlight_code(plan.get("before_code") or "", max_lines=8),
+            "after_code_html": _highlight_code(plan.get("after_code") or "", max_lines=6),
             "before_verbiage": _truncate(plan.get("before_verbiage") or "", 160),
             "after_verbiage": _truncate(plan.get("after_verbiage") or "", 160),
         })
@@ -172,7 +187,7 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
     if layout_id == "code_tip":
         ctx.update({
             "subtitle": _truncate(plan.get("subtitle") or "", 80),
-            "code_html": highlight_csharp(_truncate_code(plan.get("code"))),
+            "code_html": _highlight_code(plan.get("code") or "", max_lines=10),
             "caption": _truncate(plan.get("caption") or "", 160),
         })
         if not ctx["code_html"]:
