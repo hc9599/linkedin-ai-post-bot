@@ -90,8 +90,8 @@ class DailyPostBot:
 
         image_bytes = None
         if generate_image:
-            print("\nGenerating image prompt...")
-            image_bytes = self._image_service.generate(linkedin_content)
+            print("\nGenerating infographic strictly tied to the post...")
+            image_bytes = self._image_service.generate(linkedin_content, source_title=source.title)
         else:
             print("\nImage generation disabled (use --image to enable).")
 
