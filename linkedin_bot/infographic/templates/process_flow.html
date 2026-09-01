@@ -18,9 +18,7 @@
     <div class="step-body">
       <div class="step-label">{{ step.label }}</div>
       <div class="step-text">{{ step.text }}</div>
-      {% if step.detail %}
-      <div class="step-detail">{{ step.detail }}</div>
-      {% endif %}
+      <div class="step-detail"><span class="detail-label">In plain terms:</span> {{ step.detail }}</div>
     </div>
   </div>
   {% if not loop.last %}

@@ -266,6 +266,7 @@ html, body {
 .code-block {
   flex: 1 1 0;
   min-height: 0;
+  max-height: 55%;
   overflow: hidden;
   margin: 0;
   padding: 8px 4px;
@@ -288,6 +289,21 @@ html, body {
 .hl-string  { color: #ffa657; }
 .hl-type    { color: #d2a8ff; }
 .hl-comment { color: #8b949e; font-style: italic; }
+
+.panel-verbiage {
+  margin-top: 10px;
+  font-size: 17px;
+  font-weight: 500;
+  color: #c9d1d9;
+  line-height: 1.35;
+  flex-shrink: 0;
+}
+
+.detail-label {
+  color: #7ee787;
+  font-weight: 700;
+  margin-right: 6px;
+}
 
 .compare-arrow {
   position: absolute;

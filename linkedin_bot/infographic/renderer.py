@@ -158,10 +158,12 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
 
     if layout_id == "code_compare":
         ctx.update({
-            "before_label": _truncate(plan.get("before_label") or "Traditional Approach", 40),
-            "after_label": _truncate(plan.get("after_label") or "Modern Approach", 40),
+            "before_label": _truncate(plan.get("before_label") or "Before", 40),
+            "after_label": _truncate(plan.get("after_label") or "After", 40),
             "before_code_html": highlight_csharp(_truncate_code(plan.get("before_code"))),
             "after_code_html": highlight_csharp(_truncate_code(plan.get("after_code"))),
+            "before_verbiage": _truncate(plan.get("before_verbiage") or "", 160),
+            "after_verbiage": _truncate(plan.get("after_verbiage") or "", 160),
         })
         if not ctx["before_code_html"] or not ctx["after_code_html"]:
             return None
@@ -171,7 +173,7 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
         ctx.update({
             "subtitle": _truncate(plan.get("subtitle") or "", 80),
             "code_html": highlight_csharp(_truncate_code(plan.get("code"))),
-            "caption": _truncate(plan.get("caption") or "", 120),
+            "caption": _truncate(plan.get("caption") or "", 160),
         })
         if not ctx["code_html"]:
             return None
@@ -190,7 +192,7 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
                 "number": i,
                 "label": _truncate(step.get("label") or f"Step {i}", 24),
                 "text": text,
-                "detail": _truncate(step.get("detail") or "", 60),
+                "detail": _truncate(step.get("detail") or "", 140),
             })
         if len(steps) < 3:
             return None
