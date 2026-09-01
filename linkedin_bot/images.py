@@ -23,6 +23,7 @@ Risk guards:
 import json
 import re
 import urllib.parse
+import xml.etree.ElementTree as ET
 from io import BytesIO
 from typing import Protocol
 
@@ -30,6 +31,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from linkedin_bot.http import get_with_retry
 from linkedin_bot.llm import LLMClient
+from linkedin_bot.infographic_templates import render_template, valid_layout_ids
 
 
 class ImageRenderer(Protocol):
@@ -144,6 +146,62 @@ def _zones_grounded(zones: list[str], post_content: str, min_hits: int = 3) -> b
         if zone and _overlap_tokens(zone) & post_tokens:
             hits += 1
     return hits >= min_hits
+
+
+# ---------------------------------------------------------------
+# SVG-template path — designer-grade layout chosen by AI per post
+# ---------------------------------------------------------------
+_SVG_NS = "{http://www.w3.org/2000/svg}"
+_SVG_MAX_BYTES = 30_000          # hard cap on SVG payload (resvg-py is fast)
+
+
+def _validate_svg(svg: str) -> str:
+    """
+    Cheap deterministic SVG check before we hand it to the renderer.
+
+    Reject: malformed XML, wrong root, missing/wrong viewBox, too few <text>
+    elements (a template that lost its zone labels is broken), oversize
+    payload, or any external <image href=...> reference (resvg can't fetch
+    them reliably).
+    """
+    if not svg or len(svg) > _SVG_MAX_BYTES:
+        raise ValueError(f"svg size {len(svg)} > {_SVG_MAX_BYTES}")
+    try:
+        root = ET.fromstring(svg)
+    except ET.ParseError as e:
+        raise ValueError(f"svg parse error: {e}") from e
+    if root.tag != f"{_SVG_NS}svg":
+        raise ValueError(f"root is {root.tag}, not svg")
+    viewbox = root.get("viewBox")
+    if viewbox != f"0 0 {INFOGRAPHIC_W} {INFOGRAPHIC_H}":
+        raise ValueError(f"viewBox={viewbox!r}, expected 0 0 1080 1350")
+    text_count = len(root.findall(f".//{_SVG_NS}text"))
+    if text_count < 4:
+        raise ValueError(f"only {text_count} <text> elements, need >=4")
+    for img in root.findall(f".//{_SVG_NS}image"):
+        if img.get("href") or img.get("{http://www.w3.org/1999/xlink}href"):
+            raise ValueError("external <image href=...> not allowed")
+    return svg
+
+
+def _render_svg(svg: str) -> bytes | None:
+    """
+    Convert validated SVG to PNG bytes via resvg-py (Rust, no system deps).
+    Returns None on any renderer error so the caller can fall back.
+    """
+    try:
+        import resvg_py  # type: ignore
+    except Exception as e:
+        print(f"resvg-py unavailable: {e}")
+        return None
+    try:
+        png = resvg_py.svg_to_bytes(svg_string=svg)
+    except Exception as e:
+        print(f"resvg-py render failed: {e}")
+        return None
+    if not png:
+        return None
+    return bytes(png)
 
 
 def _text_width(text: str, font) -> int:
@@ -531,22 +589,144 @@ class ImageService:
 
         return layout
 
+    def classify_post(
+        self, post_content: str, source_title: str | None = None
+    ) -> dict | None:
+        """
+        AI picks the best layout template + fills the 4 zone labels.
+
+        Returns {layout_id, zones, accent} on success, None on any failure.
+        The SVG template registry decides what `layout_id` values are valid;
+        the LLM is told the exact list, so it cannot drift.
+        """
+        allowed = valid_layout_ids()
+        allowed_csv = ", ".join(allowed)
+        system = (
+            "You pick a layout template and fill it for a designer-grade developer "
+            "LinkedIn infographic. Hard rules:\n"
+            "1. Output ONLY JSON. No commentary. No markdown fences.\n"
+            f"2. layout_id MUST be one of: {allowed_csv}. If unsure, use flow_vertical.\n"
+            "3. Each zone is a SHORT CONCEPT LABEL — max 6 words. Words must be "
+            "drawn from the post. Examples: 'parent flag propagates', 'silent "
+            "breaking change', 'document the sampling contract'.\n"
+            "4. accent MUST be #RRGGBB hex.\n"
+            "5. If the post lacks a given zone, return empty string — never invent."
+        )
+        user = (
+            "Pick a layout and fill the zones:\n"
+            "{\n"
+            f'  "layout_id": "one of {allowed_csv}",\n'
+            '  "zones": {\n'
+            '    "hook":   "concept label, max 6 words, words drawn from the post",\n'
+            '    "take":   "concept label, max 6 words, words drawn from the post",\n'
+            '    "reason": "concept label, max 6 words, words drawn from the post",\n'
+            '    "closer": "concept label, max 6 words, words drawn from the post"\n'
+            "  },\n"
+            '  "accent": "#RRGGBB hex"\n'
+            "}\n\n"
+            f"POST:\n{post_content}"
+        )
+        raw = self._llm.complete(
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=0.2,
+            max_tokens=400,
+        )
+        if not raw:
+            return None
+        cleaned = raw.strip()
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```\s*$", "", cleaned)
+        try:
+            data = json.loads(cleaned)
+        except Exception as e:
+            print(f"classify_post: JSON parse failed: {e} — raw: {cleaned[:200]}")
+            return None
+
+        layout_id = str(data.get("layout_id", "")).strip()
+        if layout_id not in allowed:
+            print(f"classify_post: bad layout_id {layout_id!r}, using flow_vertical")
+            layout_id = "flow_vertical"
+        zones_raw = data.get("zones") or {}
+        zones = {
+            "hook":   str(zones_raw.get("hook", "")).strip()[:100],
+            "take":   str(zones_raw.get("take", "")).strip()[:100],
+            "reason": str(zones_raw.get("reason", "")).strip()[:100],
+            "closer": str(zones_raw.get("closer", "")).strip()[:100],
+        }
+        accent = str(data.get("accent", "")).strip()
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
+            accent = "#3fb950"  # dev-friendly green default
+
+        # Same grounding guard as the Pillow path — at least 3 zones grounded.
+        zone_list = [zones["hook"], zones["take"], zones["reason"], zones["closer"]]
+        if not _zones_grounded(zone_list, post_content, min_hits=3):
+            print(
+                "classify_post: rejected — fewer than 3 zones grounded in post "
+                f"(zones={zone_list})"
+            )
+            return None
+        return {"layout_id": layout_id, "zones": zones, "accent": accent}
+
     def generate(self, post_content: str, source_title: str | None = None) -> bytes | None:
-        """Render the post as an infographic. Falls back to Pollinations on any failure."""
+        """
+        Render the post as an infographic. Falls back through three layers:
+
+          1. AI picks SVG template + fills zones → resvg-py → PNG
+          2. AI extracts layout → Pillow programmatic renderer → PNG
+          3. Pollinations image API (text often garbled but ship something)
+        """
+        # -------- Layer 1: designer-grade SVG template path --------
+        try:
+            plan = self.classify_post(post_content, source_title=source_title)
+        except Exception as e:
+            print(f"classify_post raised: {e}")
+            plan = None
+        if plan:
+            print(f"Template layout: {plan['layout_id']} accent={plan['accent']}")
+            try:
+                svg = render_template(
+                    plan["layout_id"],
+                    plan["zones"],
+                    plan["accent"],
+                    source_title or "",
+                )
+                normalized = _validate_svg(svg)
+                png = _render_svg(normalized)
+                if png:
+                    if len(png) >= IMG_HARD_BYTES:
+                        print(
+                            f"SVG-rendered PNG too large "
+                            f"({len(png) // 1024}KB) — falling back."
+                        )
+                    else:
+                        if len(png) >= IMG_WARN_BYTES:
+                            print(
+                                f"WARNING: SVG-rendered PNG large "
+                                f"— {len(png) // 1024}KB"
+                            )
+                        print(f"Infographic rendered (SVG template) — {len(png) // 1024}KB")
+                        return png
+                print("SVG render produced no bytes — falling back to Pillow.")
+            except (ValueError, Exception) as e:
+                print(f"SVG template path failed: {e} — falling back to Pillow.")
+
+        # -------- Layer 2: Pillow programmatic renderer (no AI required) --------
         layout = self.extract_layout(post_content, source_title=source_title)
-        # Require at least the take (central claim). Other zones optional but
-        # the renderer fills missing ones with "(missing)" so the chain still flows.
         if layout and (layout.get("take") or layout.get("hook")):
-            print(f"Infographic layout: {layout}")
+            print(f"Infographic layout (Pillow): {layout}")
             data = self._infographic.render(layout)
             if data:
-                print(f"Infographic rendered — {len(data) // 1024}KB")
+                print(f"Infographic rendered (Pillow) — {len(data) // 1024}KB")
                 return data
             print("Pillow render failed — falling back to Pollinations.")
-        # Fallback path — keep the post going as text-with-banner if anything fails.
+
+        # -------- Layer 3: Pollinations (text often garbled; last resort) --------
         image_prompt = self.generate_prompt(post_content)
         if not image_prompt:
             print("Could not generate image prompt — skipping image.")
             return None
-        print(f"Image prompt (fallback): {image_prompt}")
+        print(f"Image prompt (Pollinations fallback): {image_prompt}")
         return self._fallback.render(image_prompt)
