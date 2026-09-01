@@ -171,6 +171,66 @@ def _wrap(text: str, max_chars: int, font, max_width_px: int) -> list[str]:
     return lines
 
 
+def _draw_lightning(draw, cx: int, cy: int, size: int, fill) -> None:
+    """Draw a lightning-bolt polygon centered on (cx, cy)."""
+    s = size
+    pts = [
+        (cx - s * 0.20, cy - s * 0.50),
+        (cx + s * 0.10, cy - s * 0.50),
+        (cx - s * 0.05, cy - s * 0.05),
+        (cx + s * 0.30, cy - s * 0.05),
+        (cx - s * 0.10, cy + s * 0.50),
+        (cx + s * 0.05, cy + s * 0.10),
+        (cx - s * 0.30, cy + s * 0.10),
+    ]
+    draw.polygon(pts, fill=fill)
+
+
+def _draw_arrow_right(draw, cx: int, cy: int, size: int, fill) -> None:
+    """Draw a right-arrow (rectangle stem + triangle head)."""
+    s = size
+    # Stem
+    draw.rectangle(
+        [(cx - s * 0.50, cy - s * 0.12), (cx + s * 0.20, cy + s * 0.12)],
+        fill=fill,
+    )
+    # Head
+    pts = [
+        (cx + s * 0.10, cy - s * 0.35),
+        (cx + s * 0.55, cy),
+        (cx + s * 0.10, cy + s * 0.35),
+    ]
+    draw.polygon(pts, fill=fill)
+
+
+def _draw_check(draw, cx: int, cy: int, size: int, fill) -> None:
+    """Draw a checkmark as a thick polyline (two strokes)."""
+    s = size
+    # Short stroke from upper-left to mid.
+    draw.line(
+        [(cx - s * 0.45, cy + s * 0.05), (cx - s * 0.10, cy + s * 0.40)],
+        fill=fill,
+        width=int(s * 0.18),
+    )
+    # Long stroke from mid to upper-right.
+    draw.line(
+        [(cx - s * 0.10, cy + s * 0.40), (cx + s * 0.50, cy - s * 0.40)],
+        fill=fill,
+        width=int(s * 0.18),
+    )
+
+
+def _draw_question(draw, cx: int, cy: int, size: int, font_q, fill) -> None:
+    """Draw a '?' glyph centered on (cx, cy). ASCII works in every font."""
+    glyph = "?"
+    bbox = font_q.getbbox(glyph)
+    w = bbox[2] - bbox[0]
+    h = bbox[3] - bbox[1]
+    x = cx - w // 2 - bbox[0]
+    y = cy - h // 2 - bbox[1]
+    draw.text((x, y), glyph, fill=fill, font=font_q)
+
+
 class PillowInfographicRenderer:
     """Render a 1080x1350 infographic that visualises the post's argument chain."""
 
@@ -188,8 +248,9 @@ class PillowInfographicRenderer:
         accent_rgb = _hex_to_rgb(layout.get("accent", "")) or ACCENT_DEFAULT
 
         font_subtitle = _try_load_font(22)
-        font_label = _try_load_font(22)
-        font_zone = _try_load_font(32)
+        font_label = _try_load_font(20)
+        font_q = _try_load_font(72)         # '?' glyph
+        font_text = _try_load_font(34)
         font_footer = _try_load_font(20)
 
         # ---- Top strip: brand + section label ----
@@ -201,23 +262,24 @@ class PillowInfographicRenderer:
             font=font_subtitle,
         )
 
-        # ---- Zones (4) — vertical argument chain ----
+        # ---- Zones (4) — vertical argument chain with shape-icon + concise label ----
+        # Each zone is a CONCEPT (≤5 words), not a sentence from the post.
+        # Icons drawn as Pillow shapes (font-independent, always render).
         zones = [
-            ("SPARK",  layout.get("hook", "")),    # article-side detail that triggered the post
-            ("TAKE",   layout.get("take", "")),    # author's central claim
-            ("WHY",    layout.get("reason", "")),  # supporting reason / parallel
-            ("SO WHAT", layout.get("closer", "")),  # closer / next step
+            ("SPARK",   "lightning", layout.get("hook", "")),
+            ("TAKE",    "arrow",     layout.get("take", "")),
+            ("WHY",     "question",  layout.get("reason", "")),
+            ("SO WHAT", "check",     layout.get("closer", "")),
         ]
         content_left = 80
         content_right = INFOGRAPHIC_W - 80
-        content_w = content_right - content_left
 
         zone_top = 150
         zone_h = 200
         gap = 36
-        for index, (label, text) in enumerate(zones):
+        for index, (label, icon_kind, text) in enumerate(zones):
             zone_y = zone_top + index * (zone_h + gap)
-            # Background panel (rounded look approximated with rectangle + tinted accent stripe)
+            # Background panel
             draw.rectangle(
                 [(content_left, zone_y), (content_right, zone_y + zone_h)],
                 fill=(22, 27, 34),
@@ -227,47 +289,71 @@ class PillowInfographicRenderer:
                 [(content_left, zone_y), (content_left + 8, zone_y + zone_h)],
                 fill=accent_rgb,
             )
-            # Label
+            # Icon frame
+            icon_box_size = 110
+            icon_x = content_left + 32
+            icon_y = zone_y + (zone_h - icon_box_size) // 2
+            draw.rectangle(
+                [
+                    (icon_x, icon_y),
+                    (icon_x + icon_box_size, icon_y + icon_box_size),
+                ],
+                outline=accent_rgb,
+                width=3,
+            )
+            # Draw the icon centered in its frame
+            cx = icon_x + icon_box_size // 2
+            cy = icon_y + icon_box_size // 2
+            icon_size = 70
+            if icon_kind == "lightning":
+                _draw_lightning(draw, cx, cy, icon_size, accent_rgb)
+            elif icon_kind == "arrow":
+                _draw_arrow_right(draw, cx, cy, icon_size, accent_rgb)
+            elif icon_kind == "question":
+                _draw_question(draw, cx, cy, icon_size, font_q, accent_rgb)
+            elif icon_kind == "check":
+                _draw_check(draw, cx, cy, icon_size, accent_rgb)
+
+            # Label tag (top-right of icon)
             draw.text(
-                (content_left + 28, zone_y + 18),
+                (icon_x + icon_box_size + 24, zone_y + 22),
                 label,
-                fill=accent_rgb,
+                fill=MUTED_COLOR,
                 font=font_label,
             )
-            # Body — word-wrap to fit panel
+
+            # Body — ULTRA concise, ≤5 words. Enforce cap.
             body = (text or "").strip() or "(missing)"
+            words = body.split()
+            if len(words) > 6:
+                words = words[:6]
+            body = " ".join(words)
             body_lines = _wrap(
                 body,
-                max_chars=34,
-                font=font_zone,
-                max_width_px=content_w - 56,
+                max_chars=22,
+                font=font_text,
+                max_width_px=INFOGRAPHIC_W - (icon_x + icon_box_size + 60),
             )
-            # Cap at 3 lines so the panel keeps its shape
-            if len(body_lines) > 3:
-                body_lines = body_lines[:3]
-                body_lines[-1] = body_lines[-1].rstrip(",.;:") + "..."
-            ty = zone_y + 56
+            tx = icon_x + icon_box_size + 24
+            ty = zone_y + 60
             for line in body_lines:
-                draw.text((content_left + 28, ty), line, fill=FG_COLOR, font=font_zone)
-                ty += 46
+                draw.text((tx, ty), line, fill=FG_COLOR, font=font_text)
+                ty += 48
 
-            # Arrow below (except after last zone) — drawn as a triangle so
-            # it reads as a flow indicator, not a letter.
+            # Arrow below (except after last zone) — drawn as stem + triangle.
             if index < len(zones) - 1:
                 arrow_y = zone_y + zone_h + 8
-                cx = INFOGRAPHIC_W // 2
-                # Stem
+                cx_a = INFOGRAPHIC_W // 2
                 draw.line(
-                    [(cx, arrow_y), (cx, arrow_y + 18)],
+                    [(cx_a, arrow_y), (cx_a, arrow_y + 18)],
                     fill=accent_rgb,
                     width=3,
                 )
-                # Triangle head
                 draw.polygon(
                     [
-                        (cx - 8, arrow_y + 18),
-                        (cx + 8, arrow_y + 18),
-                        (cx, arrow_y + 30),
+                        (cx_a - 8, arrow_y + 18),
+                        (cx_a + 8, arrow_y + 18),
+                        (cx_a, arrow_y + 30),
                     ],
                     fill=accent_rgb,
                 )
@@ -379,25 +465,26 @@ class ImageService:
         post. If the LLM fabricates, we reject and the caller falls back to Pollinations.
         """
         system = (
-            "You extract layout data for a developer-focused LinkedIn infographic "
-            "that shows the argument chain of the post. Hard rules:\n"
-            "1. Every word in each zone MUST be copied verbatim or be a tight "
-            "contraction of words already in the post. Do NOT paraphrase, do NOT "
-            "generalize, do NOT invent any idea, claim, number, tool name, or detail "
-            "that is not already in the post.\n"
-            "2. Each zone is ONE short phrase (max 10 words). Phrase must read "
-            "naturally as a standalone line.\n"
+            "You extract layout data for a developer-focused LinkedIn infographic. "
+            "The infographic shows the post's argument chain as four concise concept "
+            "labels — NOT sentences from the post. Hard rules:\n"
+            "1. Each zone is a SHORT CONCEPT LABEL — max 5 words. Examples of good "
+            "labels: 'parent flag propagates', 'recorded flag flipped silently', "
+            "'silent breaking change risk', 'document the sampling contract'. "
+            "Bad labels are full sentences copied from the post.\n"
+            "2. Every word must be drawn from the post. Do NOT invent any idea, "
+            "claim, number, tool name, or detail that is not already in the post.\n"
             "3. If the post does not clearly contain a hook / take / reason / closer, "
-            "return empty strings for the missing zone(s). Do NOT make them up.\n"
+            "return an empty string for the missing zone(s). Do NOT make them up.\n"
             "4. Reply with JSON only. No commentary. No markdown fences."
         )
         user = (
-            "Extract this argument-chain layout from the post. Verbatim only — no new ideas:\n"
+            "Extract this argument-chain layout from the post. Ultra-concise labels (max 5 words each):\n"
             "{\n"
-            '  "hook":   "the article-side spark the post reacts to, max 10 words, copied from the post",\n'
-            '  "take":   "the author\'s central claim / hot take, max 10 words, copied from the post",\n'
-            '  "reason": "the supporting reason or parallel, max 10 words, copied from the post",\n'
-            '  "closer": "the closing line or next step, max 10 words, copied from the post",\n'
+            '  "hook":   "concept label, max 5 words, words drawn from the post",\n'
+            '  "take":   "concept label, max 5 words, words drawn from the post",\n'
+            '  "reason": "concept label, max 5 words, words drawn from the post",\n'
+            '  "closer": "concept label, max 5 words, words drawn from the post",\n'
             '  "accent": "#RRGGBB hex that fits a dark-mode dev post"\n'
             "}\n\n"
             f"POST:\n{post_content}"
@@ -405,7 +492,7 @@ class ImageService:
         raw = self._llm.complete(
             messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             temperature=0.1,
-            max_tokens=320,
+            max_tokens=200,
         )
         if not raw:
             return None
