@@ -129,7 +129,7 @@ Contract — read carefully:
             max_tokens=500,
         )
         if not result:
-            raise Exception("Pass 1: Groq failed")
+            raise Exception("Pass 1: LLM call failed")
         return strip_think_blocks(result)
 
     def _pass3(self, draft: str, profile: NicheProfile) -> str:
@@ -162,7 +162,7 @@ DRAFT:
             max_tokens=500,
         )
         if not result:
-            print("Pass 3: Groq failed — keeping Pass 1 draft")
+            print("Pass 3: LLM call failed — keeping Pass 1 draft")
             return draft
         cleaned = strip_think_blocks(result)
         if len(cleaned.split()) < len(draft.split()) * 0.5:

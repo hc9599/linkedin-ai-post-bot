@@ -45,7 +45,7 @@ def pick_article(
     focus: Focus,
 ) -> CandidatePost:
     """
-    Lock one article before any Groq call.
+    Lock one article before any LLM call.
 
     Prefer niche-relevant posts that match the focus topic; then reactions.
     """

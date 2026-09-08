@@ -14,7 +14,7 @@ from linkedin_bot.discovery import fetch_pulse_titles, resolve_focus
 from linkedin_bot.generation import PostGenerator
 from linkedin_bot.generation.variance import LoopState, first_line
 from linkedin_bot.images import ImageService
-from linkedin_bot.llm import GroqClient, LLMClient
+from linkedin_bot.llm import LLMClient, create_llm_client, resolve_provider_id
 from linkedin_bot.niche import load_profile
 from linkedin_bot.publishing import LinkedInPublisher, Publisher
 from linkedin_bot.review import attach_source_credit, review_before_publish
@@ -128,14 +128,21 @@ class DailyPostBot:
         self._publisher.publish(linkedin_content, image_bytes)
 
 
-def compose(niche_id: str, *, focus_topic: str | None = None) -> DailyPostBot:
+def compose(
+    niche_id: str,
+    *,
+    focus_topic: str | None = None,
+    llm_provider: str | None = None,
+) -> DailyPostBot:
     """
     Plug the real services together for a niche profile.
 
     Swap sources by editing profiles/*.yaml without rewriting the bot.
     """
     profile = load_profile(niche_id)
-    llm: LLMClient = GroqClient()
+    provider_id = resolve_provider_id(llm_provider)
+    print(f"LLM provider: {provider_id}")
+    llm: LLMClient = create_llm_client(provider_id)
     aggregator = SourceAggregator(build_sources(profile, focus_topic=focus_topic))
     return DailyPostBot(
         aggregator=aggregator,
@@ -171,13 +178,19 @@ def main() -> None:
         default=os.environ.get("TOPIC", ""),
         help="Manual focus topic. Omit for auto trend discovery.",
     )
+    parser.add_argument(
+        "--llm-provider",
+        default=os.environ.get("LLM_PROVIDER", ""),
+        help="LLM backend: openai (default), groq, anthropic.",
+    )
     args = parser.parse_args()
 
     dry_run = args.dry_run or env_flag("DRY_RUN")
     generate_img = args.image or env_flag("IMAGE")
     topic = (args.topic or "").strip() or None
+    llm_provider = (args.llm_provider or "").strip() or None
 
-    compose(args.niche, focus_topic=topic).run(
+    compose(args.niche, focus_topic=topic, llm_provider=llm_provider).run(
         dry_run=dry_run,
         generate_image=generate_img,
         topic=topic,

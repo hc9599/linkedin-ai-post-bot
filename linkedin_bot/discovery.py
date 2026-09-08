@@ -2,7 +2,7 @@
 Topic and trend discovery for niche-focused curation.
 
 Manual mode: operator passes --topic.
-Trend mode: Groq picks a hot trend from pulse + niche feed titles.
+Trend mode: LLM picks hot trend from pulse + niche feed titles.
 """
 from __future__ import annotations
 

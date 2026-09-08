@@ -181,9 +181,9 @@ def llm_niche_source_check(
     profile: NicheProfile,
 ) -> tuple[bool, str]:
     """
-    Ask Groq: is this post actually on-niche, and is it about this article?
+    Ask the LLM: is this post actually on-niche, and is it about this article?
 
-    Answer must start with PASS or FAIL. If Groq is silent, we do not publish.
+    Answer must start with PASS or FAIL. If the LLM is silent, we do not publish.
     """
     prompt = f"""You are a last-chance checker before a LinkedIn post goes live.
 

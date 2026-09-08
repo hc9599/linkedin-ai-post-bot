@@ -1,13 +1,8 @@
 # Daily LinkedIn Post
 #
-# This file is the alarm clock. GitHub runs it on weekdays (or when you click
-# "Run workflow"). It installs Python, waits a random bit so the post is not
-# always at the same minute, then starts script.py.
-#
-# Secrets live in the GitHub repo settings, not in this file:
-#   GROQ_API_KEY, LINKEDIN_TOKEN, LINKEDIN_PERSON_ID
-#
-# This workflow does not merge anything. It only runs the bot.
+# Secrets (GitHub repo → Settings → Secrets):
+#   OPENAI_API_KEY (default provider), GROQ_API_KEY, ANTHROPIC_API_KEY
+#   LINKEDIN_TOKEN, LINKEDIN_PERSON_ID
 
 name: Daily LinkedIn Post
 on:
@@ -23,6 +18,10 @@ on:
         description: Optional manual focus topic (empty = auto trend)
         required: false
         default: ""
+      llm_provider:
+        description: LLM backend (openai, groq, anthropic)
+        required: false
+        default: openai
 
 jobs:
   post:
@@ -55,10 +54,13 @@ jobs:
           PYTHONUNBUFFERED: "1"
           PYTHONIOENCODING: "utf-8"
           PYTHONPATH: ${{ github.workspace }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           LINKEDIN_TOKEN: ${{ secrets.LINKEDIN_TOKEN }}
           LINKEDIN_PERSON_ID: ${{ secrets.LINKEDIN_PERSON_ID }}
           DRY_RUN: "false"
           NICHE: ${{ github.event.inputs.niche || 'csharp-dotnet' }}
           TOPIC: ${{ github.event.inputs.topic || '' }}
+          LLM_PROVIDER: ${{ github.event.inputs.llm_provider || 'openai' }}
         run: python -u script.py --image
