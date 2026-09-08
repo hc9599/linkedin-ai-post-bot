@@ -8,11 +8,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
 _ALLOWED_CODE_LANGUAGES = frozenset({"csharp", "python", "plain"})
+_ALLOWED_AUDIENCE_MODES = frozenset({"peers", "mixed", "business"})
+AudienceMode = Literal["peers", "mixed", "business"]
+
+_DEFAULT_MIXED_CLOSERS = (
+    "End with a team or hiring tradeoff question a manager could answer — tie it to the article.",
+    "End asking whether this changes how they'd evaluate seniority on a team.",
+    "End with a delivery-risk vs speed question in plain English — no syntax choices.",
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +56,23 @@ class EngagementConfig:
     max_sentences_per_paragraph: int
 
 
+def _default_audience_config() -> "AudienceConfig":
+    return AudienceConfig(
+        mode="mixed",
+        closers=_DEFAULT_MIXED_CLOSERS,
+        jargon_policy="explain_on_first_use",
+        lead_with="impact",
+    )
+
+
+@dataclass(frozen=True)
+class AudienceConfig:
+    mode: AudienceMode
+    closers: tuple[str, ...]
+    jargon_policy: str
+    lead_with: str
+
+
 @dataclass(frozen=True)
 class NicheProfile:
     id: str
@@ -68,10 +93,23 @@ class NicheProfile:
             max_sentences_per_paragraph=2,
         )
     )
+    audience: AudienceConfig = field(default_factory=_default_audience_config)
 
     @property
     def required_hashtags_line(self) -> str:
         return " ".join(self.hashtags)
+
+
+def active_closers(profile: NicheProfile) -> tuple[str, ...]:
+    if profile.audience.mode == "peers":
+        return profile.engagement.closers
+    if profile.audience.closers:
+        return profile.audience.closers
+    return _DEFAULT_MIXED_CLOSERS
+
+
+def allows_code_snippet(profile: NicheProfile) -> bool:
+    return profile.audience.mode == "peers" and profile.engagement.allow_code_snippet
 
 
 def _repo_root() -> Path:
@@ -118,6 +156,45 @@ def _parse_weekday_angles(raw: dict[str, Any] | None) -> dict[int, WeekdayAngle]
                 avoid=avoid,
             )
     return angles
+
+
+def _parse_audience_mode(value: str) -> AudienceMode:
+    mode = value.strip().lower()
+    if mode not in _ALLOWED_AUDIENCE_MODES:
+        allowed = ", ".join(sorted(_ALLOWED_AUDIENCE_MODES))
+        raise ValueError(f"Invalid audience.mode {value!r}; allowed: {allowed}")
+    return mode  # type: ignore[return-value]
+
+
+def _parse_audience(raw: dict[str, Any] | None) -> AudienceConfig:
+    default = _default_audience_config()
+    if not raw or not isinstance(raw, dict):
+        return default
+
+    mode_raw = str(raw.get("mode") or default.mode)
+    mode = _parse_audience_mode(mode_raw)
+
+    closers_raw = raw.get("closers")
+    closers: tuple[str, ...] = default.closers
+    if isinstance(closers_raw, list) and closers_raw:
+        parsed = tuple(str(item).strip() for item in closers_raw if str(item).strip())
+        if parsed:
+            closers = parsed
+
+    jargon_policy = str(raw.get("jargon_policy") or default.jargon_policy).strip()
+    if mode == "business" and jargon_policy == default.jargon_policy:
+        jargon_policy = "minimal_jargon"
+
+    lead_with = str(raw.get("lead_with") or default.lead_with).strip()
+    if lead_with not in {"impact", "story", "takeaway"}:
+        lead_with = default.lead_with
+
+    return AudienceConfig(
+        mode=mode,
+        closers=closers,
+        jargon_policy=jargon_policy,
+        lead_with=lead_with,
+    )
 
 
 def _parse_engagement(raw: dict[str, Any] | None) -> EngagementConfig:
@@ -229,4 +306,5 @@ def load_profile(niche_id: str) -> NicheProfile:
         code_language=code_language,
         default_angle=default_angle,
         engagement=_parse_engagement(data.get("engagement")),
+        audience=_parse_audience(data.get("audience")),
     )

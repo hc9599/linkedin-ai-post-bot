@@ -48,6 +48,7 @@ class DailyPostBot:
             print("*** DRY RUN MODE — post will NOT be published to LinkedIn ***\n")
 
         print(f"Niche: {self._profile.display_name} ({self._profile.id})")
+        print(f"Audience mode: {self._profile.audience.mode}")
         print(f"Fetching posts for {self._profile.display_name}...")
         posts = self._aggregator.fetch()
 

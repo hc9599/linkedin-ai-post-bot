@@ -6,7 +6,7 @@ A weekday helper that finds niche tech articles, writes an interactive LinkedIn 
 
 **LLM-configurable** — default provider is **Groq**. Switch to OpenAI or Anthropic Claude via `--llm-provider` or `LLM_PROVIDER`.
 
-Posts are tuned for developer engagement: specific question closers, short mobile-friendly paragraphs, optional code snippets (C# profile).
+Posts are tuned for **mixed-audience reach** by default: plain-language impact first, jargon glossed inline, hiring-manager-friendly closers. Use `audience.mode: peers` in a profile for deep dev-only posts with optional code snippets.
 
 Meant to run on **GitHub Actions**. Run locally first with `--dry-run` so nothing goes live.
 
@@ -15,7 +15,7 @@ Meant to run on **GitHub Actions**. Run locally first with `--dry-run` so nothin
 1. Loads a niche profile (`--niche`, default `csharp-dotnet`).
 2. Reads recent posts from Reddit, dev.to, Hacker News, and RSS feeds defined in the profile.
 3. **Manual topic** (`--topic "EF Core"`) or **auto trend** (LLM picks a hot trend from feeds, maps to niche angle).
-4. Asks the configured LLM to write a LinkedIn post about one curated article — with a peer-level engagement closer.
+4. Asks the configured LLM to write a LinkedIn post about one curated article — tuned for the profile's audience mode (mixed by default).
 5. Cleans markdown, emojis, and leftover notes; double-checks niche fit and source match.
 6. Adds a Source line with title, site, and URL.
 7. Posts text to LinkedIn — unless dry-run.
@@ -25,7 +25,7 @@ Meant to run on **GitHub Actions**. Run locally first with `--dry-run` so nothin
 | Path | What it is |
 | --- | --- |
 | `script.py` | Entry point |
-| `profiles/` | Niche YAML configs (persona, sources, engagement closers) |
+| `profiles/` | Niche YAML configs (persona, sources, audience modes, engagement closers) |
 | `config/llm_providers.yaml` | LLM provider defaults (models, URLs) |
 | `linkedin_bot/llm/` | OpenAI, Groq, Anthropic clients + factory |
 | `linkedin_bot/niche.py` | Profile loader |
@@ -95,9 +95,48 @@ $env:LLM_MODEL = "gpt-4o"
 python script.py --dry-run --llm-provider openai
 ```
 
+## Audience modes (profiles)
+
+Control who the post is written for via `audience:` in profile YAML. Default when omitted: **mixed**.
+
+| Mode | Reader | Code snippets | Closer pool |
+| --- | --- | --- | --- |
+| `mixed` | Devs + hiring managers + tech-curious | No | `audience.closers` |
+| `business` | Leads / hiring focus (stricter plain language) | No | `audience.closers` |
+| `peers` | Developer peers only | Optional (`engagement.allow_code_snippet`) | `engagement.closers` |
+
+Example — mixed audience (default C# profile):
+
+```yaml
+audience:
+  mode: mixed
+  lead_with: impact
+  jargon_policy: explain_on_first_use
+  closers:
+    - "End with a team or hiring tradeoff question a manager could answer."
+
+engagement:
+  allow_code_snippet: false
+  max_sentences_per_paragraph: 2
+```
+
+Example — deep dev-only posts:
+
+```yaml
+audience:
+  mode: peers
+
+engagement:
+  allow_code_snippet: true
+  closers:
+    - "End with a specific A/B choice a dev would answer in one line."
+```
+
+See `profiles/csharp_dotnet.yaml` for the default mixed tuning.
+
 ## Engagement (profiles)
 
-Add an `engagement:` block to any profile YAML:
+When `audience.mode` is `peers`, add an `engagement:` block for dev closers and optional code:
 
 ```yaml
 engagement:
@@ -113,7 +152,7 @@ See `profiles/csharp_dotnet.yaml` for the default C# tuning.
 
 1. Copy `profiles/python.yaml` → `profiles/my_stack.yaml`
 2. Set `id`, `display_name`, `relevance_keywords`, `hashtags`, `persona`, `sources`, `pulse_queries`
-3. Optionally add `engagement:` closers
+3. Optionally add `audience:` and `engagement:` blocks
 4. Run: `python script.py --dry-run --niche my-stack`
 
 ## GitHub Actions

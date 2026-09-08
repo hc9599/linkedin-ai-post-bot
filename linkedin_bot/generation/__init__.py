@@ -21,7 +21,7 @@ from linkedin_bot.generation.tone import classify_tone, tone_label
 from linkedin_bot.generation.variance import LoopState
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
-from linkedin_bot.niche import NicheProfile, WeekdayAngle
+from linkedin_bot.niche import NicheProfile, WeekdayAngle, active_closers, allows_code_snippet
 
 
 class PostGenerator:
@@ -52,7 +52,7 @@ class PostGenerator:
         tone_key = classify_tone(article.title, facts)
         state = LoopState.load()
         opener_style = state.next_style()
-        closer_style = state.next_closer(profile.engagement.closers)
+        closer_style = state.next_closer(active_closers(profile))
         print(f"Pass 4 — opener style: {opener_style}")
         closer_preview = (
             closer_style if len(closer_style) <= 80 else closer_style[:80] + "..."
@@ -85,6 +85,73 @@ class PostGenerator:
     def _weekday_angle(self, profile: NicheProfile) -> WeekdayAngle | None:
         return profile.weekday_angles.get(datetime.now().weekday())
 
+    def _pass1_audience_block(self, profile: NicheProfile) -> tuple[str, str, str]:
+        """Return (audience_line, code_block, engagement_rules) for Pass 1."""
+        engagement = profile.engagement
+        audience = profile.audience
+
+        if audience.mode == "peers":
+            code_block = ""
+            if allows_code_snippet(profile):
+                code_block = (
+                    f"\n- Optional: include 1-3 lines of {profile.code_language} code if it clarifies a tradeoff.\n"
+                    "- Snippet must be illustrative only — do not invent APIs not hinted in title/facts.\n"
+                    "- Put blank lines before and after any code block.\n"
+                )
+            audience_line = (
+                "- Write for developer peers who already know the stack — not a general audience."
+            )
+            engagement_rules = (
+                "Engagement rules:\n"
+                "- The line immediately before the hashtags MUST be a specific developer question or A/B choice tied to the article spark.\n"
+                "- Forbidden closers: thoughts?, agree?, let me know, share your thoughts, drop a comment, what do you think?\n"
+                "- Do not ask 'my network'. Invite a reply a senior dev would actually type."
+            )
+            return audience_line, code_block, engagement_rules
+
+        lead_map = {
+            "impact": "why a team, hire, or project should care",
+            "story": "a brief career-adjacent hook, then the point",
+            "takeaway": "the plain-language takeaway upfront",
+        }
+        lead_hint = lead_map.get(audience.lead_with, lead_map["impact"])
+        jargon_hint = (
+            "Use minimal jargon — prefer plain business language."
+            if audience.jargon_policy == "minimal_jargon"
+            else "Every technical term or acronym MUST be glossed inline on first use (5-10 plain words)."
+        )
+        audience_line = (
+            "- AUDIENCE: mixed LinkedIn feed — developers, hiring managers, tech-curious readers.\n"
+            f"- Lead with {lead_hint} before technical detail.\n"
+            f"- {jargon_hint}\n"
+            "- Max one dense technical concept per paragraph.\n"
+            "- NO code blocks. Do not assume the reader knows C# or .NET."
+        )
+        engagement_rules = (
+            "Engagement rules:\n"
+            "- The line immediately before the hashtags MUST be a specific question about team, hiring, delivery, or business tradeoff — tied to the article spark.\n"
+            "- Forbidden closers: thoughts?, agree?, let me know, share your thoughts, drop a comment, what do you think?\n"
+            "- Forbidden dev-only closers: 'in your codebase', syntax A/B choices, 'anyone else still on X' unless X is explained in plain English.\n"
+            "- Do not ask 'my network'. Invite a reply a hiring manager or lead could answer in one line."
+        )
+        return audience_line, "", engagement_rules
+
+    def _pass3_accessibility_block(self, profile: NicheProfile) -> str:
+        if profile.audience.mode == "peers":
+            return (
+                "Engagement: the line immediately before the hashtags MUST be a SPECIFIC developer "
+                "question or A/B choice tied to the post topic — not generic bait like \"thoughts?\" "
+                "or \"agree?\". If the closer is vague, rewrite only that line."
+            )
+        return (
+            "Accessibility pass (mixed audience):\n"
+            "- Rewrite unexplained jargon or acronyms — add a brief plain-English gloss or simplify.\n"
+            "- Rewrite dev-only closers ('in your codebase', syntax A/B) to team or business framing.\n"
+            "- Keep senior-engineer voice — do not become corporate marketing.\n"
+            "Engagement: the line immediately before the hashtags MUST be a SPECIFIC team, hiring, or "
+            "delivery question — not generic bait. If the closer is vague or dev-only, rewrite only that line."
+        )
+
     def _pass1(
         self,
         article: CandidatePost,
@@ -107,13 +174,7 @@ class PostGenerator:
                 f"- Avoid: {weekday.avoid}\n"
             )
         engagement = profile.engagement
-        code_block = ""
-        if engagement.allow_code_snippet:
-            code_block = (
-                f"\n- Optional: include 1-3 lines of {profile.code_language} code if it clarifies a tradeoff.\n"
-                "- Snippet must be illustrative only — do not invent APIs not hinted in title/facts.\n"
-                "- Put blank lines before and after any code block.\n"
-            )
+        audience_line, code_block, engagement_rules = self._pass1_audience_block(profile)
         hashtags_line = profile.required_hashtags_line
         user = f"""TONE: {tone_label(tone_key)}
 
@@ -132,12 +193,9 @@ ENGAGEMENT CLOSER: {closer_style}
 
 Formatting:
 - Max {engagement.max_sentences_per_paragraph} sentences per paragraph, then a blank line.
-- Write for developer peers who already know the stack — not a general audience.
+{audience_line}
 {code_block}
-Engagement rules:
-- The line immediately before the hashtags MUST be a specific developer question or A/B choice tied to the article spark.
-- Forbidden closers: thoughts?, agree?, let me know, share your thoughts, drop a comment, what do you think?
-- Do not ask 'my network'. Invite a reply a senior dev would actually type.
+{engagement_rules}
 
 Write a LinkedIn post as that senior engineer.
 First line exactly: TOPIC: {article.title}
@@ -170,6 +228,7 @@ Contract — read carefully:
         combined_reject = list(dict.fromkeys(PASS3_REJECT + ENGAGEMENT_BAIT_REJECT))
         reject = ", ".join(f'"{t}"' for t in combined_reject)
         hashtags_line = profile.required_hashtags_line
+        accessibility_block = self._pass3_accessibility_block(profile)
         prompt = f"""Read this draft. Flag any line that sounds like marketing copy, LinkedIn-guru \
 cliché, or something no real engineer would say out loud. Rewrite only those \
 lines. Keep everything else untouched. Output ONLY the final post.
@@ -179,9 +238,7 @@ More than 3 hashtags is too many — keep only this exact last line: {hashtags_l
 Preserve the TOPIC: line at the top if present.
 If a date appears, use spoken form like "28 July 2026", not ISO.
 
-Engagement: the line immediately before the hashtags MUST be a SPECIFIC developer \
-question or A/B choice tied to the post topic — not generic bait like "thoughts?" \
-or "agree?". If the closer is vague, rewrite only that line.
+{accessibility_block}
 
 CRITICAL: flag any sentence that puts the author inside the article's story — \
 e.g. "I shipped this", "we migrated to this", "I tried this and got burned", "my \

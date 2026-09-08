@@ -207,7 +207,7 @@ FAIL: <short reason in plain English>
 PASS only if ALL are true:
 1. A {profile.display_name} developer would recognise this as their world.
 2. A reader can tell the take was sparked by that source article (a riff/opinion is enough; \
-it does not need to summarise the article).
+   it does not need to summarise the article).
 3. The post does NOT claim the author built, shipped, deployed, migrated to, used, or \
 implemented the thing described in the source. Phrases like "I shipped this", "we migrated \
 to this", "my team built this", "I tried this and", "I deployed it last quarter" — when the \
@@ -215,8 +215,12 @@ object of the verb refers to the source article's subject — MUST be absent. A 
 "this reminded me of a similar incident from my own career" is fine because the object is a \
 SEPARATE thing from the article.
 4. The post does not start with a banned AI opener ('In today's...', 'I came across...', \
-"Let's dive...", 'Most teams...', etc.) and reads like a real engineer's Slack message.
-"""
+"Let's dive...", 'Most teams...', etc.) and reads like a real engineer's Slack message."""
+    if profile.audience.mode != "peers":
+        prompt += """
+5. (Mixed audience) A non-technical hiring manager or PM could state the main point in one \
+sentence without reading the source. The post does not assume the reader knows C#, .NET, or \
+unexplained acronyms. FAIL if the post is a jargon wall or peer-only inside joke."""
     result = llm.complete(
         messages=[{"role": "user", "content": prompt}],
         temperature=0.0,

@@ -84,9 +84,10 @@ weekday_angles:
     audience_signal: Useful opinion, not release notes.
     avoid: No changelog recap.
 
-# Optional engagement block (see profiles/csharp_dotnet.yaml for full example):
-# engagement:
-#   allow_code_snippet: false
-#   max_sentences_per_paragraph: 2
+# Optional audience block (default when omitted: mode mixed):
+# audience:
+#   mode: peers   # deep dev voice; uses engagement.closers below
 #   closers:
 #     - "End with one specific Python dev question tied to the article."
+#
+# Optional engagement block (used when audience.mode is peers):
