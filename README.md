@@ -86,7 +86,3 @@ python script.py --dry-run --niche python --topic "async"
 ## GitHub Actions
 
 Runs weekdays on cron. **Actions → Daily LinkedIn Post → Run workflow** supports optional `niche` and `topic` inputs.
-
-## Spec docs
-
-Feature design: `specs/001-generic-topic-trend/`
