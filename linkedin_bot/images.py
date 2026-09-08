@@ -13,6 +13,7 @@ import re
 
 from linkedin_bot.infographic import render_infographic, valid_layout_ids
 from linkedin_bot.llm import LLMClient
+from linkedin_bot.niche import NicheProfile
 
 IMG_WARN_BYTES = 1_000_000
 IMG_HARD_BYTES = 4_000_000
@@ -284,7 +285,7 @@ def _normalize_plan(data: dict, layout_id: str) -> dict | None:
     return plan
 
 
-def _deterministic_fallback_plan(post_content: str) -> dict:
+def _deterministic_fallback_plan(post_content: str, display_name: str) -> dict:
     """
     Last-resort process_flow built only from post sentences — always on-topic
     because it copies the post itself.
@@ -297,7 +298,7 @@ def _deterministic_fallback_plan(post_content: str) -> dict:
         chunks.append(block)
 
     if not chunks:
-        chunks = [post_content.strip()[:200] or "C# / .NET developer take"]
+        chunks = [post_content.strip()[:200] or f"{display_name} developer take"]
 
     title = chunks[0]
     if len(title) > 70:
@@ -339,7 +340,7 @@ class ImageService:
     def __init__(self, llm: LLMClient) -> None:
         self._llm = llm
 
-    def _assess_post_type(self, post_content: str) -> str:
+    def _assess_post_type(self, post_content: str, profile: NicheProfile) -> str:
         """
         Read the post and pick the best infographic format before generating content.
         """
@@ -352,7 +353,7 @@ class ImageService:
 
         allowed = valid_layout_ids()
         system = (
-            "You classify a C#/.NET LinkedIn post for infographic layout. "
+            f"You classify a {profile.display_name} LinkedIn post for infographic layout. "
             'Output ONLY JSON: {"layout_id": "...", "reason": "one sentence"}.\n\n'
             f"layout_id MUST be one of: {', '.join(allowed)}.\n\n"
             "- code_compare: ONLY when the post is a clear OLD vs NEW code tutorial "
@@ -384,13 +385,15 @@ class ImageService:
         self,
         post_content: str,
         layout_id: str,
+        profile: NicheProfile,
         *,
         feedback: str | None = None,
         strict: bool = False,
     ) -> dict | None:
         hints = _post_keyword_hints(post_content)
+        code_hint = profile.code_language if profile.code_language != "plain" else "code"
         system = (
-            "You create LinkedIn infographic JSON from a C#/.NET developer post. "
+            f"You create LinkedIn infographic JSON from a {profile.display_name} developer post. "
             "Output ONLY JSON — no markdown fences.\n\n"
             f"Use layout_id: {layout_id}\n\n"
             "Global rules:\n"
@@ -400,12 +403,12 @@ class ImageService:
             "4. accent = #RRGGBB (gold #FFC107 for code layouts).\n\n"
             "code_compare fields:\n"
             "  before_label, after_label (short, can be Before/After)\n"
-            "  before_code, after_code — max 8 lines each, complete lines only, "
-            "C# with // layman comments, \\n for newlines. No ... truncation.\n"
+            f"  before_code, after_code — max 8 lines each, complete lines only, "
+            f"{code_hint} with // layman comments, \\n for newlines. No ... truncation.\n"
             "  before_verbiage — plain English sentence under the BEFORE panel\n"
             "  after_verbiage — plain English sentence under the AFTER panel\n\n"
             "code_tip fields:\n"
-            "  code — C# with // layman comments\n"
+            f"  code — {code_hint} with // layman comments\n"
             "  caption — plain English why this matters\n"
             "  subtitle — optional one-line context\n\n"
             "process_flow fields:\n"
@@ -440,12 +443,12 @@ class ImageService:
         data["layout_id"] = layout_id
         return _normalize_plan(data, layout_id)
 
-    def _plan_with_retries(self, post_content: str) -> dict:
+    def _plan_with_retries(self, post_content: str, profile: NicheProfile) -> dict:
         """
         Assess post → generate plan → validate → retry until related.
         Falls back to deterministic post copy if LLM never passes validation.
         """
-        primary = self._assess_post_type(post_content)
+        primary = self._assess_post_type(post_content, profile)
         layouts_to_try = _LAYOUT_FALLBACK_ORDER.get(primary, valid_layout_ids())
 
         feedback: str | None = None
@@ -453,7 +456,7 @@ class ImageService:
             for attempt in range(1, MAX_PLAN_ATTEMPTS + 1):
                 print(f"Infographic plan attempt {attempt}/{MAX_PLAN_ATTEMPTS} ({layout_id})")
                 plan = self._request_plan(
-                    post_content, layout_id, feedback=feedback, strict=(attempt >= 3)
+                    post_content, layout_id, profile, feedback=feedback, strict=(attempt >= 3)
                 )
                 if not plan:
                     feedback = "invalid or incomplete JSON — include all required fields"
@@ -466,19 +469,28 @@ class ImageService:
                 feedback = reason
 
         print("Infographic plan: using deterministic fallback from post text")
-        return _deterministic_fallback_plan(post_content)
+        return _deterministic_fallback_plan(post_content, profile.display_name)
 
     def generate(
-        self, post_content: str, source_title: str | None = None
+        self,
+        post_content: str,
+        *,
+        profile: NicheProfile,
+        source_title: str | None = None,
     ) -> bytes | None:
         try:
-            plan = self._plan_with_retries(post_content)
+            plan = self._plan_with_retries(post_content, profile)
         except Exception as e:
             print(f"Infographic planning raised: {e}")
-            plan = _deterministic_fallback_plan(post_content)
+            plan = _deterministic_fallback_plan(post_content, profile.display_name)
 
         try:
-            png = render_infographic(plan, source=source_title or "")
+            png = render_infographic(
+                plan,
+                source=source_title or "",
+                code_language=profile.code_language,
+                default_title=profile.display_name,
+            )
         except Exception as e:
             print(f"HTML render raised: {e}")
             return None

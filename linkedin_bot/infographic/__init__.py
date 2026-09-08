@@ -20,7 +20,13 @@ def valid_layout_ids() -> list[str]:
     return list(_VALID_LAYOUT_IDS)
 
 
-def render_infographic(plan: dict, source: str = "") -> bytes | None:
+def render_infographic(
+    plan: dict,
+    source: str = "",
+    *,
+    code_language: str = "csharp",
+    default_title: str = "Developer",
+) -> bytes | None:
     """
     Render a 1080x1350 PNG infographic from a structured plan dict.
 
@@ -31,7 +37,12 @@ def render_infographic(plan: dict, source: str = "") -> bytes | None:
     if layout_id not in _VALID_LAYOUT_IDS:
         layout_id = _DEFAULT_LAYOUT_ID
     plan = {**plan, "layout_id": layout_id}
-    return get_renderer().render(plan, source_title=source)
+    return get_renderer().render(
+        plan,
+        source_title=source,
+        code_language=code_language,
+        default_title=default_title,
+    )
 
 
 __all__ = [

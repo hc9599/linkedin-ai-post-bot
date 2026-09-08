@@ -3,20 +3,52 @@ News sites the bot reads.
 
 Each website has its own class with a fetch() method.
 The mixer (SourceAggregator) takes a couple of articles from each so the AI
-has a mixed menu, not 6 posts from one site.
+has a mixed menu, not multiple posts from one site.
 """
 import random
 import re
 from typing import Protocol
 
 from linkedin_bot.models import CandidatePost
+from linkedin_bot.niche import NicheProfile
+from linkedin_bot.sources.devto import DevToSource
+from linkedin_bot.sources.hackernews import HackerNewsSource
+from linkedin_bot.sources.reddit import RedditSource
+from linkedin_bot.sources.rss_feed import RssFeedSource
 
 
 class PostSource(Protocol):
-    """A website we can ask: "give me recent C# / .NET articles." """
+    """A website we can ask for recent niche articles."""
 
     def fetch(self) -> list[CandidatePost]:
         ...
+
+
+def build_sources(profile: NicheProfile, *, focus_topic: str | None = None) -> list[PostSource]:
+    """Construct enabled sources from a niche profile."""
+    sources: list[PostSource] = []
+    cfg = profile.sources
+
+    if cfg.reddit_subreddits:
+        sources.append(RedditSource(cfg.reddit_subreddits))
+    if cfg.devto_tags:
+        sources.append(DevToSource(cfg.devto_tags))
+    for feed in cfg.rss_feeds:
+        sources.append(RssFeedSource(feed.urls, feed.name))
+    if cfg.hn_queries:
+        extra: list[str] = []
+        if focus_topic:
+            extra = [
+                f"{focus_topic} {profile.display_name.split('/')[0].strip()}",
+                focus_topic,
+            ]
+        sources.append(HackerNewsSource(
+            queries=cfg.hn_queries,
+            keywords=profile.relevance_keywords,
+            extra_queries=extra,
+        ))
+
+    return sources
 
 
 class SourceAggregator:
@@ -60,20 +92,18 @@ class SourceAggregator:
 
         random.shuffle(combined)
 
-        # Deduplicate across sources by normalised title
-        # Keeps the first occurrence (highest ranked source wins)
         seen_titles: set[str] = set()
         deduped: list[CandidatePost] = []
-        for p in combined:
-            norm = re.sub(r"[^a-z0-9\s]", "", p.title.lower()).strip()
+        for post in combined:
+            norm = re.sub(r"[^a-z0-9\s]", "", post.title.lower()).strip()
             if norm not in seen_titles:
                 seen_titles.add(norm)
-                deduped.append(p)
+                deduped.append(post)
 
-        final = combined[:self._final_count]
+        final = deduped[:self._final_count]
 
         print(f"\nFinal selected posts ({len(final)}):")
-        for p in final:
-            print(f"  - [{p.reactions} reactions | {p.source}] {p.title}")
+        for post in final:
+            print(f"  - [{post.reactions} reactions | {post.source}] {post.title}")
 
         return final

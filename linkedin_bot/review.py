@@ -3,18 +3,18 @@ Last look before LinkedIn.
 
 Two jobs:
   1. Name the article we are talking about (title + link) on the post.
-  2. Stop the send if the post is not really about C# / .NET.
+  2. Stop the send if the post is not really about the active niche.
 
 Better to skip a day than publish a random off-topic take.
 """
 import re
 
-from linkedin_bot.config import HASHTAGS
 from linkedin_bot.generation.reject import reject_hits
 from linkedin_bot.generation.style import MAX_POST_WORDS
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
-from linkedin_bot.sources.relevance import is_dotnet_relevant
+from linkedin_bot.niche import NicheProfile
+from linkedin_bot.sources.relevance import is_relevant
 
 
 def extract_topic_title(text: str) -> str | None:
@@ -87,9 +87,9 @@ def match_source(topic_title: str | None, posts: list[CandidatePost], body: str)
     return None
 
 
-def _body_without_hashtags(text: str) -> str:
+def _body_without_hashtags(text: str, hashtags: list[str]) -> str:
     body = text
-    for tag in HASHTAGS:
+    for tag in hashtags:
         body = body.replace(tag, "")
     return body.strip()
 
@@ -174,19 +174,20 @@ def attach_source_credit(text: str, source: CandidatePost) -> str:
     return f"{body}\n\n{credit}"
 
 
-def llm_dotnet_source_check(
+def llm_niche_source_check(
     llm: LLMClient,
     post_text: str,
     source: CandidatePost,
+    profile: NicheProfile,
 ) -> tuple[bool, str]:
     """
-    Ask Groq: is this post actually C#/.NET, and is it about this article?
+    Ask Groq: is this post actually on-niche, and is it about this article?
 
     Answer must start with PASS or FAIL. If Groq is silent, we do not publish.
     """
     prompt = f"""You are a last-chance checker before a LinkedIn post goes live.
 
-The post MUST be about C# and/or .NET (the language, runtime, libraries, tooling, or ecosystem).
+The post MUST be about {profile.review_niche_label}.
 The views in the post MUST relate to the source article below. Not a random tech rant.
 
 SOURCE SITE: {source.source}
@@ -204,7 +205,7 @@ or
 FAIL: <short reason in plain English>
 
 PASS only if ALL are true:
-1. A C# or .NET developer would recognise this as their world.
+1. A {profile.display_name} developer would recognise this as their world.
 2. A reader can tell the take was sparked by that source article (a riff/opinion is enough; \
 it does not need to summarise the article).
 3. The post does NOT claim the author built, shipped, deployed, migrated to, used, or \
@@ -235,6 +236,7 @@ def review_before_publish(
     draft_with_topic: str,
     cleaned_post: str,
     candidates: list[CandidatePost],
+    profile: NicheProfile,
 ) -> tuple[CandidatePost | None, str | None]:
     """
     Double-check before LinkedIn.
@@ -247,11 +249,15 @@ def review_before_publish(
     if source is None:
         return None, "could not match the post to a source article — not publishing"
 
-    body = _body_without_hashtags(cleaned_post)
-    keyword_ok = is_dotnet_relevant(body, source.title + " " + source.summary)
+    body = _body_without_hashtags(cleaned_post, profile.hashtags)
+    keyword_ok = is_relevant(
+        body,
+        source.title + " " + source.summary,
+        profile.relevance_keywords,
+    )
     if not keyword_ok:
         print(
-            "Review: post body has no obvious C#/.NET words. "
+            f"Review: post body has no obvious {profile.display_name} words. "
             "Still asking the AI checker."
         )
 
@@ -267,25 +273,25 @@ def review_before_publish(
         )
 
     extra_tags = [
-        tag for tag in re.findall(r"#\w+", cleaned_post) if tag not in HASHTAGS
+        tag for tag in re.findall(r"#\w+", cleaned_post) if tag not in profile.hashtags
     ]
     if extra_tags:
         return None, f"extra hashtags: {', '.join(extra_tags)}"
 
-    words = _gate_word_count(cleaned_post)
+    words = _gate_word_count(cleaned_post, profile.hashtags)
     if words > MAX_POST_WORDS:
         return None, f"post is {words} words (max {MAX_POST_WORDS})"
 
-    ok, detail = llm_dotnet_source_check(llm, cleaned_post, source)
+    ok, detail = llm_niche_source_check(llm, cleaned_post, source, profile)
     print(f"Review checker: {detail}")
     if not ok:
-        return None, f"C#/.NET or source check failed: {detail}"
+        return None, f"Niche or source check failed: {detail}"
 
     return source, None
 
 
-def _gate_word_count(text: str) -> int:
-    body = _body_without_hashtags(text)
+def _gate_word_count(text: str, hashtags: list[str]) -> int:
+    body = _body_without_hashtags(text, hashtags)
     kept: list[str] = []
     for line in body.splitlines():
         stripped = line.strip()

@@ -131,15 +131,6 @@ def _truncate(text: str, max_chars: int = 100) -> str:
     return text
 
 
-def _truncate_title(text: str, max_chars: int = 64) -> str:
-    if not text:
-        return "C# / .NET"
-    text = str(text).strip()
-    if len(text) > max_chars:
-        return text[: max_chars - 1].rstrip() + "…"
-    return text
-
-
 def _truncate_code(text: str, max_lines: int = 8) -> str:
     """Keep whole lines only — never truncate mid-line in a code panel."""
     if not text:
@@ -150,14 +141,24 @@ def _truncate_code(text: str, max_lines: int = 8) -> str:
     return "\n".join(lines)
 
 
-def _highlight_code(code: str, max_lines: int = 8) -> str:
+def _truncate_title(text: str, default: str, max_chars: int = 64) -> str:
+    if not text:
+        return default
+    text = str(text).strip()
+    if len(text) > max_chars:
+        return text[: max_chars - 1].rstrip() + "…"
+    return text
+
+
+def _highlight_code(code: str, code_language: str, max_lines: int = 8) -> str:
     trimmed = _truncate_code(code, max_lines=max_lines)
     if not trimmed:
         return ""
-    highlighted = highlight_csharp(trimmed)
-    if not highlight_is_clean(highlighted):
-        return _plain_code_html(trimmed)
-    return highlighted
+    if code_language == "csharp":
+        highlighted = highlight_csharp(trimmed)
+        if highlight_is_clean(highlighted):
+            return highlighted
+    return _plain_code_html(trimmed)
 
 
 _STEP_PREFIX_RE = re.compile(r"^STEP\s*\d+\s*:?\s*", re.IGNORECASE)
@@ -175,22 +176,28 @@ def _strip_leading_step_number(text: str, step_num: int) -> str:
     return cleaned
 
 
-def _build_context(plan: dict, source_title: str | None) -> dict | None:
+def _build_context(
+    plan: dict,
+    source_title: str | None,
+    *,
+    code_language: str,
+    default_title: str,
+) -> dict | None:
     """Map a classified plan dict into Jinja2 template variables."""
     layout_id = (plan.get("layout_id") or "process_flow").strip()
     accent = _sanitize_accent(plan.get("accent") or "#FFC107")
     ctx: dict = {
         "css": _build_css(accent),
         "accent": accent,
-        "title": _truncate_title(plan.get("title")),
+        "title": _truncate_title(plan.get("title"), default_title),
     }
 
     if layout_id == "code_compare":
         ctx.update({
             "before_label": _truncate(plan.get("before_label") or "Before", 40),
             "after_label": _truncate(plan.get("after_label") or "After", 40),
-            "before_code_html": _highlight_code(plan.get("before_code") or "", max_lines=8),
-            "after_code_html": _highlight_code(plan.get("after_code") or "", max_lines=6),
+            "before_code_html": _highlight_code(plan.get("before_code") or "", code_language, max_lines=8),
+            "after_code_html": _highlight_code(plan.get("after_code") or "", code_language, max_lines=6),
             "before_verbiage": _truncate(plan.get("before_verbiage") or "", 160),
             "after_verbiage": _truncate(plan.get("after_verbiage") or "", 160),
         })
@@ -201,7 +208,7 @@ def _build_context(plan: dict, source_title: str | None) -> dict | None:
     if layout_id == "code_tip":
         ctx.update({
             "subtitle": _truncate(plan.get("subtitle") or "", 80),
-            "code_html": _highlight_code(plan.get("code") or "", max_lines=10),
+            "code_html": _highlight_code(plan.get("code") or "", code_language, max_lines=10),
             "caption": _truncate(plan.get("caption") or "", 160),
         })
         if not ctx["code_html"]:
@@ -313,12 +320,24 @@ def get_renderer() -> "PlaywrightHtmlRenderer":
 class PlaywrightHtmlRenderer:
     """Render an HTML template to PNG bytes via headless Chromium."""
 
-    def render(self, plan: dict, source_title: str | None = None) -> bytes | None:
+    def render(
+        self,
+        plan: dict,
+        source_title: str | None = None,
+        *,
+        code_language: str = "csharp",
+        default_title: str = "Developer",
+    ) -> bytes | None:
         """
         Render the plan to PNG bytes. Returns None on any failure.
         """
         layout_id = (plan.get("layout_id") or "process_flow").strip()
-        ctx = _build_context(plan, source_title)
+        ctx = _build_context(
+            plan,
+            source_title,
+            code_language=code_language,
+            default_title=default_title,
+        )
         if ctx is None:
             print(f"Could not build template context for {layout_id!r}")
             return None

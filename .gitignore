@@ -3,3 +3,7 @@ __pycache__/
 *.py[cod]
 *.pyo
 .Python
+
+# Local tooling — not part of the bot
+.specify/
+.cursor/

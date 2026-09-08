@@ -15,10 +15,6 @@ USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 )
-REQUIRED_HASHTAGS = "#CSharp #DotNet #Programming #SoftwareDevelopment"
-HASHTAGS = ["#CSharp", "#DotNet", "#Programming", "#SoftwareDevelopment"]
-
-
 def groq_api_key() -> str:
     """Read the Groq password/key. Fail early if someone forgot to set it."""
     key = os.environ.get("GROQ_API_KEY")

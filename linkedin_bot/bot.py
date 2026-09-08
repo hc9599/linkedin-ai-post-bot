@@ -5,21 +5,20 @@ Think of DailyPostBot as the conductor. It does not fetch Reddit itself —
 it asks helpers to do each step.
 """
 import argparse
+import os
 from datetime import datetime
 
-from linkedin_bot.cleaning import default_cleaning_pipeline, strip_think_blocks, CleaningPipeline
+from linkedin_bot.cleaning import CleaningPipeline, cleaning_pipeline_for, strip_think_blocks
 from linkedin_bot.config import env_flag
+from linkedin_bot.discovery import fetch_pulse_titles, resolve_focus
 from linkedin_bot.generation import PostGenerator
 from linkedin_bot.generation.variance import LoopState, first_line
 from linkedin_bot.images import ImageService
 from linkedin_bot.llm import GroqClient, LLMClient
+from linkedin_bot.niche import load_profile
 from linkedin_bot.publishing import LinkedInPublisher, Publisher
 from linkedin_bot.review import attach_source_credit, review_before_publish
-from linkedin_bot.sources import SourceAggregator
-from linkedin_bot.sources.devto import DevToSource
-from linkedin_bot.sources.hackernews import HackerNewsSource
-from linkedin_bot.sources.microsoft_blog import MicrosoftBlogSource
-from linkedin_bot.sources.reddit import RedditSource
+from linkedin_bot.sources import SourceAggregator, build_sources
 
 
 class DailyPostBot:
@@ -33,6 +32,7 @@ class DailyPostBot:
         publisher: Publisher,
         image_service: ImageService,
         llm: LLMClient,
+        profile,
     ):
         self._aggregator = aggregator
         self._generator = generator
@@ -40,33 +40,49 @@ class DailyPostBot:
         self._publisher = publisher
         self._image_service = image_service
         self._llm = llm
+        self._profile = profile
 
-    def run(self, *, dry_run: bool, generate_image: bool) -> None:
+    def run(
+        self,
+        *,
+        dry_run: bool,
+        generate_image: bool,
+        topic: str | None,
+    ) -> None:
         if dry_run:
             print("*** DRY RUN MODE — post will NOT be published to LinkedIn ***\n")
 
-        print("Fetching posts from Reddit, dev.to, and .NET Dev Blog...")
+        print(f"Niche: {self._profile.display_name} ({self._profile.id})")
+        print(f"Fetching posts for {self._profile.display_name}...")
         posts = self._aggregator.fetch()
 
         if not posts:
             print("No posts fetched, exiting.")
             return
 
+        pulse_titles: list[str] = []
+        if not (topic and topic.strip()):
+            pulse_titles = fetch_pulse_titles(self._profile)
+
+        focus = resolve_focus(self._llm, self._profile, posts, pulse_titles, topic)
+
         print("\nRunning senior-dev generation loop...")
-        linkedin_content = strip_think_blocks(self._generator.compose(posts))
+        linkedin_content = strip_think_blocks(
+            self._generator.compose(posts, self._profile, focus)
+        )
         print("\nDraft after loop:")
         print(linkedin_content)
         draft_with_topic = linkedin_content
 
-        # Hashtags, no markdown, no leftover TOPIC line, LinkedIn length cap.
         linkedin_content = self._cleaner.apply(linkedin_content)
 
-        print("\nChecking C#/.NET fit and attaching the source article...")
+        print(f"\nChecking {self._profile.display_name} fit and attaching the source article...")
         source, fail_reason = review_before_publish(
             self._llm,
             draft_with_topic,
             linkedin_content,
             posts,
+            self._profile,
         )
         if fail_reason or source is None:
             print(f"ABORT: {fail_reason or 'no source matched'}")
@@ -91,7 +107,11 @@ class DailyPostBot:
         image_bytes = None
         if generate_image:
             print("\nGenerating infographic strictly tied to the post...")
-            image_bytes = self._image_service.generate(linkedin_content, source_title=source.title)
+            image_bytes = self._image_service.generate(
+                linkedin_content,
+                profile=self._profile,
+                source_title=source.title,
+            )
         else:
             print("\nImage generation disabled (use --image to enable).")
 
@@ -99,8 +119,8 @@ class DailyPostBot:
             print("\n*** DRY RUN — skipping LinkedIn publish ***")
             if image_bytes:
                 img_path = f"dry_run_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                with open(img_path, "wb") as f:
-                    f.write(image_bytes)
+                with open(img_path, "wb") as handle:
+                    handle.write(image_bytes)
                 print(f"Image saved locally for preview: {img_path}")
             return
 
@@ -108,26 +128,23 @@ class DailyPostBot:
         self._publisher.publish(linkedin_content, image_bytes)
 
 
-def compose() -> DailyPostBot:
+def compose(niche_id: str, *, focus_topic: str | None = None) -> DailyPostBot:
     """
-    Plug the real services together.
+    Plug the real services together for a niche profile.
 
-    Swap a source here (add another website) without rewriting the rest of the bot.
+    Swap sources by editing profiles/*.yaml without rewriting the bot.
     """
+    profile = load_profile(niche_id)
     llm: LLMClient = GroqClient()
-    aggregator = SourceAggregator([
-        RedditSource(),
-        DevToSource(),
-        MicrosoftBlogSource(),
-        HackerNewsSource(),
-    ])
+    aggregator = SourceAggregator(build_sources(profile, focus_topic=focus_topic))
     return DailyPostBot(
         aggregator=aggregator,
         generator=PostGenerator(llm),
-        cleaner=default_cleaning_pipeline(),
+        cleaner=cleaning_pipeline_for(profile),
         publisher=LinkedInPublisher(),
         image_service=ImageService(llm),
         llm=llm,
+        profile=profile,
     )
 
 
@@ -144,8 +161,24 @@ def main() -> None:
         action="store_true",
         help="Generate and attach an image to the post (off by default).",
     )
+    parser.add_argument(
+        "--niche",
+        default=os.environ.get("NICHE", "csharp-dotnet"),
+        help="Niche profile id (default: csharp-dotnet).",
+    )
+    parser.add_argument(
+        "--topic",
+        default=os.environ.get("TOPIC", ""),
+        help="Manual focus topic. Omit for auto trend discovery.",
+    )
     args = parser.parse_args()
 
     dry_run = args.dry_run or env_flag("DRY_RUN")
     generate_img = args.image or env_flag("IMAGE")
-    compose().run(dry_run=dry_run, generate_image=generate_img)
+    topic = (args.topic or "").strip() or None
+
+    compose(args.niche, focus_topic=topic).run(
+        dry_run=dry_run,
+        generate_image=generate_img,
+        topic=topic,
+    )

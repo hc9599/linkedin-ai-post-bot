@@ -46,13 +46,15 @@ def fetch_devto_article_body(url: str) -> str:
 
 
 class DevToSource:
-    """Read recent csharp and dotnet posts on dev.to. Dedupes titles that appear under both tags."""
+    """Read recent posts for configured dev.to tags."""
+
+    def __init__(self, tags: list[str]):
+        self._tags = tags
 
     def fetch(self) -> list[CandidatePost]:
-        tags = ["dotnet", "csharp"]
         posts: list[CandidatePost] = []
 
-        for tag in tags:
+        for tag in self._tags:
             url = f"https://dev.to/api/articles?tag={tag}&per_page=20&top=7"
             print(f"Fetching dev.to tag: #{tag}...")
             payload = fetch_json(url, timeout=20, attempts=5)

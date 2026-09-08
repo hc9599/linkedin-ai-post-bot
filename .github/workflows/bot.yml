@@ -11,11 +11,18 @@
 
 name: Daily LinkedIn Post
 on:
-  # Weekdays around 03:30 UTC, plus a random extra wait in the job below.
   schedule:
     - cron: 30 3 * * 1-5
-  # Let you click Run workflow in the Actions tab without waiting for the cron.
   workflow_dispatch:
+    inputs:
+      niche:
+        description: Niche profile id (e.g. csharp-dotnet, python)
+        required: false
+        default: csharp-dotnet
+      topic:
+        description: Optional manual focus topic (empty = auto trend)
+        required: false
+        default: ""
 
 jobs:
   post:
@@ -52,4 +59,6 @@ jobs:
           LINKEDIN_TOKEN: ${{ secrets.LINKEDIN_TOKEN }}
           LINKEDIN_PERSON_ID: ${{ secrets.LINKEDIN_PERSON_ID }}
           DRY_RUN: "false"
+          NICHE: ${{ github.event.inputs.niche || 'csharp-dotnet' }}
+          TOPIC: ${{ github.event.inputs.topic || '' }}
         run: python -u script.py --image

@@ -7,7 +7,7 @@ The AI sometimes adds markdown, emojis, a TOPIC: header, or leftover
 from collections.abc import Callable
 import re
 
-from linkedin_bot.config import HASHTAGS, REQUIRED_HASHTAGS
+from linkedin_bot.niche import NicheProfile
 
 # High-signal leftover GPT phrasing. We warn in logs; the rewrite pass should have cut these.
 _AI_TELL_WARN = [
@@ -160,44 +160,42 @@ def strip_topic_line(text: str) -> str:
     return re.sub(r'^TOPIC:.*\n?', '', text, flags=re.IGNORECASE).strip()
 
 
-def enforce_hashtags(text: str) -> str:
-    """
-    Strips any existing hashtag block from the post body, then appends
-    the canonical hashtag line. Handles hashtags on their own line OR
-    appended inline to the last sentence.
-    """
-    for tag in HASHTAGS:
-        text = text.replace(tag, "")
+def enforce_hashtags(hashtags_line: str) -> Callable[[str], str]:
+    """Return a cleaner that strips old tags and appends the profile hashtag line."""
+    tags = hashtags_line.split()
 
-    text = re.sub(r'\n{3,}', '\n\n', text).strip()
+    def _apply(text: str) -> str:
+        for tag in tags:
+            text = text.replace(tag, "")
+        text = re.sub(r"\n{3,}", "\n\n", text).strip()
+        return text + "\n\n" + hashtags_line
 
-    return text + "\n\n" + REQUIRED_HASHTAGS
+    return _apply
 
 
-def truncate_for_linkedin(text: str, limit: int = 2900) -> str:
-    """
-    Hard cap at 2900 chars (100 char buffer under LinkedIn's 3000 limit).
-    Truncates at the last full sentence before the limit, reattaches hashtags.
-    Should never trigger in normal operation — purely a safety net.
-    """
-    if len(text) <= limit:
-        return text
+def truncate_for_linkedin(hashtags_line: str, limit: int = 2900) -> Callable[[str], str]:
+    """Hard cap with hashtag line preserved."""
+    def _apply(text: str) -> str:
+        if len(text) <= limit:
+            return text
 
-    lines = text.strip().splitlines()
-    hashtag_line = ""
-    if lines and lines[-1].strip().startswith("#"):
-        hashtag_line = "\n\n" + lines[-1]
-        text = "\n".join(lines[:-1]).strip()
+        lines = text.strip().splitlines()
+        hashtag_suffix = ""
+        if lines and lines[-1].strip().startswith("#"):
+            hashtag_suffix = "\n\n" + lines[-1]
+            text = "\n".join(lines[:-1]).strip()
 
-    cap = limit - len(hashtag_line)
-    truncated = text[:cap]
-    last_stop = max(truncated.rfind(". "), truncated.rfind(".\n"))
-    if last_stop != -1:
-        truncated = truncated[:last_stop + 1]
+        cap = limit - len(hashtag_suffix)
+        truncated = text[:cap]
+        last_stop = max(truncated.rfind(". "), truncated.rfind(".\n"))
+        if last_stop != -1:
+            truncated = truncated[:last_stop + 1]
 
-    result = truncated.strip() + hashtag_line
-    print(f"WARNING: Post truncated from {len(text)} to {len(result)} characters.")
-    return result
+        result = truncated.strip() + hashtag_suffix
+        print(f"WARNING: Post truncated from {len(text)} to {len(result)} characters.")
+        return result
+
+    return _apply
 
 
 class CleaningPipeline:
@@ -212,15 +210,21 @@ class CleaningPipeline:
         return text
 
 
-def default_cleaning_pipeline() -> CleaningPipeline:
-    """The usual LinkedIn polish: thinking notes, TOPIC line, markdown, hashtags, length."""
+def cleaning_pipeline_for(profile: NicheProfile) -> CleaningPipeline:
+    """LinkedIn polish steps using profile hashtags."""
+    hashtags_line = profile.required_hashtags_line
     return CleaningPipeline([
         strip_think_blocks,
         strip_topic_line,
         clean_markdown,
         normalize_spoken_dates,
         normalize_ai_punctuation,
-        enforce_hashtags,
-        truncate_for_linkedin,
+        enforce_hashtags(hashtags_line),
+        truncate_for_linkedin(hashtags_line),
         warn_ai_tells,
     ])
+
+
+def default_cleaning_pipeline(profile: NicheProfile) -> CleaningPipeline:
+    """Alias for profile-aware cleaning pipeline."""
+    return cleaning_pipeline_for(profile)

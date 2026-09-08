@@ -1,0 +1,85 @@
+id: python
+display_name: Python
+review_niche_label: Python (the language, runtime, libraries, tooling, or ecosystem)
+code_language: plain
+default_angle: Write for Python peers about this topic.
+
+hashtags:
+  - "#Python"
+  - "#Programming"
+  - "#SoftwareDevelopment"
+  - "#Backend"
+
+relevance_keywords:
+  - python
+  - django
+  - flask
+  - fastapi
+  - asyncio
+  - pip
+  - pytest
+  - pandas
+  - numpy
+  - typing
+  - cpython
+  - uvicorn
+  - sqlalchemy
+  - pydantic
+
+pulse_queries:
+  - ai
+  - machine learning
+  - data science
+  - web development
+  - open source
+
+persona: |
+  You are a senior Python developer, 8+ yrs, posting on LinkedIn casually between
+  meetings. You read an article today and it triggered a thought about your own past
+  work. You did NOT ship, build, or deploy whatever THIS article describes — you only
+  read it. React from the outside. Write like you're texting a dev friend. No emoji
+  unless one dry 😅 max. Contractions always. One concrete detail from the article
+  as the SPARK, not a summary.
+
+sources:
+  reddit_subreddits:
+    - Python
+    - learnpython
+  devto_tags:
+    - python
+  hn_queries:
+    - python
+    - django
+    - fastapi
+    - asyncio
+  rss_feeds: []
+
+weekday_angles:
+  0:
+    focus: Focus on a Python language or runtime change — what you would do differently in code.
+    audience_signal: Write for other Python developers, not beginners.
+    avoid: Do not recap the article. React with a take.
+  1:
+    focus: Focus on Python tooling — pip, uv, pytest, IDE, packaging.
+    audience_signal: Opinion on try vs skip. Peers, not a review site.
+    avoid: No product tour or 'I tried this tool' war story.
+  2:
+    focus: Focus on a Python architecture tradeoff — async, DI, module boundaries.
+    audience_signal: Another senior should want to agree or argue.
+    avoid: No architecture poetry. One named tension.
+  3:
+    focus: Focus on where Python sits this year — adoption, hiring, competition.
+    audience_signal: A take someone can disagree with.
+    avoid: No cheerleading. Take a side.
+  4:
+    focus: Focus on production Python — deployment, observability, scaling, security.
+    audience_signal: Specific failure modes, not tutorial-speak.
+    avoid: Do not paste the article.
+  5:
+    focus: Focus on Python performance — profiling, asyncio, C extensions, GIL.
+    audience_signal: What you would measure or change.
+    avoid: No abstract 'performance matters'.
+  6:
+    focus: Focus on what's new in Python. Filter — try, skip, or wait.
+    audience_signal: Useful opinion, not release notes.
+    avoid: No changelog recap.

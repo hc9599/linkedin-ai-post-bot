@@ -5,8 +5,10 @@ Pass 2 classifies tone. Pass 1 drafts. Pass 3 rewrites only cliché lines.
 Pass 4 re-rolls the opener if it clones the last few posts.
 Pass 5 lives in review.py.
 """
+from datetime import datetime
+
 from linkedin_bot.cleaning import strip_think_blocks
-from linkedin_bot.config import REQUIRED_HASHTAGS
+from linkedin_bot.discovery import Focus
 from linkedin_bot.generation.facts import key_facts, pick_article
 from linkedin_bot.generation.reject import reject_hits
 from linkedin_bot.generation.style import MAX_POST_WORDS, OPENER_STYLES, PASS3_REJECT
@@ -14,19 +16,7 @@ from linkedin_bot.generation.tone import classify_tone, tone_label
 from linkedin_bot.generation.variance import LoopState
 from linkedin_bot.llm import LLMClient
 from linkedin_bot.models import CandidatePost
-
-_PERSONA = """You are a senior software engineer, 8+ yrs, posting on LinkedIn casually between \
-meetings. You read an article today and it triggered a thought about your own past \
-work. You have shipped things in your career — but you did NOT ship, build, migrate \
-to, deploy, or use whatever THIS article is describing. You are reacting from the \
-outside, not as a user of the thing. "This reminded me of X from a job years ago" \
-is fine. "I shipped this" or "I tried this and" about the article's subject is \
-FORBIDDEN. Write like you're texting a dev friend who'll understand the joke, not \
-addressing 'my network'. Never start with 'In today's fast-paced world' or 'I'm \
-excited to share'. No emoji unless it's one dry 😅 or 💀 max. Contractions always. \
-Short sentences mixed with one longer rant sentence. One concrete detail from the \
-article (a number, a quote, a gotcha) — used as the SPARK, not turned into a war \
-story, and not a summary."""
+from linkedin_bot.niche import NicheProfile, WeekdayAngle
 
 
 class PostGenerator:
@@ -36,9 +26,14 @@ class PostGenerator:
         self._llm = llm
         self._article: CandidatePost | None = None
 
-    def compose(self, posts: list[CandidatePost]) -> str:
+    def compose(
+        self,
+        posts: list[CandidatePost],
+        profile: NicheProfile,
+        focus: Focus,
+    ) -> str:
         """Pass 2 → 1 → 3 → 4. Returns draft with TOPIC line still on top."""
-        article = pick_article(posts)
+        article = pick_article(posts, profile, focus)
         self._article = article
         facts = key_facts(article)
         print(f"Loop: locked article -> {article.title}")
@@ -54,8 +49,8 @@ class PostGenerator:
         opener_style = state.next_style()
         print(f"Pass 4 — opener style: {opener_style}")
 
-        draft = self._pass1(article, facts, tone_key, opener_style)
-        draft = self._pass3(draft)
+        draft = self._pass1(article, facts, tone_key, opener_style, profile, focus)
+        draft = self._pass3(draft, profile)
 
         if state.clashes(draft):
             avoid = state.avoid_instruction(draft)
@@ -67,10 +62,15 @@ class PostGenerator:
                 facts,
                 tone_key,
                 f"{next_style}. {avoid}",
+                profile,
+                focus,
             )
-            draft = self._pass3(draft)
+            draft = self._pass3(draft, profile)
 
         return draft
+
+    def _weekday_angle(self, profile: NicheProfile) -> WeekdayAngle | None:
+        return profile.weekday_angles.get(datetime.now().weekday())
 
     def _pass1(
         self,
@@ -78,11 +78,26 @@ class PostGenerator:
         facts: list[str],
         tone_key: str,
         opener_style: str,
+        profile: NicheProfile,
+        focus: Focus,
     ) -> str:
         print("Pass 1 — draft (persona lock)")
         fact_block = "\n".join(f"- {f}" for f in facts) if facts else "- (none — do not invent facts)"
+        weekday = self._weekday_angle(profile)
+        weekday_block = ""
+        if weekday:
+            weekday_block = (
+                f"\nWEEKDAY ANGLE:\n"
+                f"- Focus: {weekday.focus}\n"
+                f"- Audience: {weekday.audience_signal}\n"
+                f"- Avoid: {weekday.avoid}\n"
+            )
+        hashtags_line = profile.required_hashtags_line
         user = f"""TONE: {tone_label(tone_key)}
 
+FOCUS TOPIC: {focus.topic}
+NICHE ANGLE: {focus.angle}
+{weekday_block}
 Article title (you did not write this, you did not ship it):
 {article.title}
 
@@ -93,7 +108,7 @@ OPENER: {opener_style}
 
 Write a LinkedIn post as that senior engineer.
 First line exactly: TOPIC: {article.title}
-Then the post. Last line exactly: {REQUIRED_HASHTAGS}
+Then the post. Last line exactly: {hashtags_line}
 Stay under {MAX_POST_WORDS - 40} words so the gate does not kill it.
 
 Contract — read carefully:
@@ -107,7 +122,7 @@ Contract — read carefully:
 """
         result = self._llm.complete(
             messages=[
-                {"role": "system", "content": _PERSONA},
+                {"role": "system", "content": profile.persona},
                 {"role": "user", "content": user},
             ],
             temperature=0.82,
@@ -117,15 +132,16 @@ Contract — read carefully:
             raise Exception("Pass 1: Groq failed")
         return strip_think_blocks(result)
 
-    def _pass3(self, draft: str) -> str:
+    def _pass3(self, draft: str, profile: NicheProfile) -> str:
         print("Pass 3 — self-critique (rewrite cliché lines only)")
         reject = ", ".join(f'"{t}"' for t in PASS3_REJECT)
+        hashtags_line = profile.required_hashtags_line
         prompt = f"""Read this draft. Flag any line that sounds like marketing copy, LinkedIn-guru \
 cliché, or something no real engineer would say out loud. Rewrite only those \
 lines. Keep everything else untouched. Output ONLY the final post.
 
 Also kill any of these if they appear: {reject}
-More than 3 hashtags is too many — keep only this exact last line: {REQUIRED_HASHTAGS}
+More than 3 hashtags is too many — keep only this exact last line: {hashtags_line}
 Preserve the TOPIC: line at the top if present.
 If a date appears, use spoken form like "28 July 2026", not ISO.
 

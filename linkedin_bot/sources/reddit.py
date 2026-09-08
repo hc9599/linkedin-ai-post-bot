@@ -120,19 +120,17 @@ def _fetch_subreddit(subreddit: str, sort: str, seen: set[str]) -> list[Candidat
 
 
 class RedditSource:
-    """
-    r/csharp and r/dotnet.
+    """Fetch posts from configured subreddits."""
 
-    GitHub Actions IPs get 429 from Reddit — Arctic Shift is the primary path.
-    """
+    def __init__(self, subreddits: list[str]):
+        self._subreddits = subreddits
 
     def fetch(self) -> list[CandidatePost]:
-        subreddits = ["csharp", "dotnet"]
         sort = "top" if datetime.now().weekday() % 2 == 0 else "hot"
         posts: list[CandidatePost] = []
         seen: set[str] = set()
 
-        for subreddit in subreddits:
+        for subreddit in self._subreddits:
             posts.extend(_fetch_subreddit(subreddit, sort, seen))
 
         print(f"Total Reddit posts collected: {len(posts)}")
