@@ -7,3 +7,4 @@ __pycache__/
 # Local tooling — not part of the bot
 .specify/
 .cursor/
+specs/
