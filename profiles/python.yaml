@@ -83,3 +83,10 @@ weekday_angles:
     focus: Focus on what's new in Python. Filter — try, skip, or wait.
     audience_signal: Useful opinion, not release notes.
     avoid: No changelog recap.
+
+# Optional engagement block (see profiles/csharp_dotnet.yaml for full example):
+# engagement:
+#   allow_code_snippet: false
+#   max_sentences_per_paragraph: 2
+#   closers:
+#     - "End with one specific Python dev question tied to the article."

@@ -1,19 +1,17 @@
 """
-The daily run: find articles, write a post, clean it, maybe make an image, maybe publish.
+The daily run: find articles, write a post, clean it, publish.
 
 Think of DailyPostBot as the conductor. It does not fetch Reddit itself —
 it asks helpers to do each step.
 """
 import argparse
 import os
-from datetime import datetime
 
 from linkedin_bot.cleaning import CleaningPipeline, cleaning_pipeline_for, strip_think_blocks
 from linkedin_bot.config import env_flag
 from linkedin_bot.discovery import fetch_pulse_titles, resolve_focus
 from linkedin_bot.generation import PostGenerator
-from linkedin_bot.generation.variance import LoopState, first_line
-from linkedin_bot.images import ImageService
+from linkedin_bot.generation.variance import LoopState, first_line, last_content_line
 from linkedin_bot.llm import LLMClient, create_llm_client, resolve_provider_id
 from linkedin_bot.niche import load_profile
 from linkedin_bot.publishing import LinkedInPublisher, Publisher
@@ -30,7 +28,6 @@ class DailyPostBot:
         generator: PostGenerator,
         cleaner: CleaningPipeline,
         publisher: Publisher,
-        image_service: ImageService,
         llm: LLMClient,
         profile,
     ):
@@ -38,7 +35,6 @@ class DailyPostBot:
         self._generator = generator
         self._cleaner = cleaner
         self._publisher = publisher
-        self._image_service = image_service
         self._llm = llm
         self._profile = profile
 
@@ -46,7 +42,6 @@ class DailyPostBot:
         self,
         *,
         dry_run: bool,
-        generate_image: bool,
         topic: str | None,
     ) -> None:
         if dry_run:
@@ -101,31 +96,18 @@ class DailyPostBot:
         print(f"Source: {source.title}")
         print(f"Link: {source.link}")
 
-        LoopState.load().record(linkedin_content)
+        state = LoopState.load()
+        state.record(linkedin_content)
+        state.record_closer(linkedin_content)
         print(f"Pass 4 — recorded opener: {first_line(linkedin_content)}")
-
-        image_bytes = None
-        if generate_image:
-            print("\nGenerating infographic strictly tied to the post...")
-            image_bytes = self._image_service.generate(
-                linkedin_content,
-                profile=self._profile,
-                source_title=source.title,
-            )
-        else:
-            print("\nImage generation disabled (use --image to enable).")
+        print(f"Pass 4 — recorded closer: {last_content_line(linkedin_content)}")
 
         if dry_run:
             print("\n*** DRY RUN — skipping LinkedIn publish ***")
-            if image_bytes:
-                img_path = f"dry_run_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-                with open(img_path, "wb") as handle:
-                    handle.write(image_bytes)
-                print(f"Image saved locally for preview: {img_path}")
             return
 
         print("\nPosting to LinkedIn...")
-        self._publisher.publish(linkedin_content, image_bytes)
+        self._publisher.publish(linkedin_content)
 
 
 def compose(
@@ -149,7 +131,6 @@ def compose(
         generator=PostGenerator(llm),
         cleaner=cleaning_pipeline_for(profile),
         publisher=LinkedInPublisher(),
-        image_service=ImageService(llm),
         llm=llm,
         profile=profile,
     )
@@ -164,11 +145,6 @@ def main() -> None:
         help="Generate and print the post without publishing to LinkedIn.",
     )
     parser.add_argument(
-        "--image",
-        action="store_true",
-        help="Generate and attach an image to the post (off by default).",
-    )
-    parser.add_argument(
         "--niche",
         default=os.environ.get("NICHE", "csharp-dotnet"),
         help="Niche profile id (default: csharp-dotnet).",
@@ -181,17 +157,15 @@ def main() -> None:
     parser.add_argument(
         "--llm-provider",
         default=os.environ.get("LLM_PROVIDER", ""),
-        help="LLM backend: openai (default), groq, anthropic.",
+        help="LLM backend: groq (default), openai, anthropic.",
     )
     args = parser.parse_args()
 
     dry_run = args.dry_run or env_flag("DRY_RUN")
-    generate_img = args.image or env_flag("IMAGE")
     topic = (args.topic or "").strip() or None
     llm_provider = (args.llm_provider or "").strip() or None
 
     compose(args.niche, focus_topic=topic, llm_provider=llm_provider).run(
         dry_run=dry_run,
-        generate_image=generate_img,
         topic=topic,
     )

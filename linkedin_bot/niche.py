@@ -36,6 +36,18 @@ class WeekdayAngle:
     avoid: str
 
 
+_DEFAULT_ENGAGEMENT_CLOSERS = (
+    "End with one specific question a developer in this niche would answer in one line.",
+)
+
+
+@dataclass(frozen=True)
+class EngagementConfig:
+    closers: tuple[str, ...]
+    allow_code_snippet: bool
+    max_sentences_per_paragraph: int
+
+
 @dataclass(frozen=True)
 class NicheProfile:
     id: str
@@ -49,6 +61,13 @@ class NicheProfile:
     pulse_queries: list[str]
     code_language: str
     default_angle: str = ""
+    engagement: EngagementConfig = field(
+        default_factory=lambda: EngagementConfig(
+            closers=_DEFAULT_ENGAGEMENT_CLOSERS,
+            allow_code_snippet=False,
+            max_sentences_per_paragraph=2,
+        )
+    )
 
     @property
     def required_hashtags_line(self) -> str:
@@ -99,6 +118,37 @@ def _parse_weekday_angles(raw: dict[str, Any] | None) -> dict[int, WeekdayAngle]
                 avoid=avoid,
             )
     return angles
+
+
+def _parse_engagement(raw: dict[str, Any] | None) -> EngagementConfig:
+    default = EngagementConfig(
+        closers=_DEFAULT_ENGAGEMENT_CLOSERS,
+        allow_code_snippet=False,
+        max_sentences_per_paragraph=2,
+    )
+    if not raw or not isinstance(raw, dict):
+        return default
+
+    closers_raw = raw.get("closers")
+    closers: tuple[str, ...] = default.closers
+    if isinstance(closers_raw, list) and closers_raw:
+        parsed = tuple(str(item).strip() for item in closers_raw if str(item).strip())
+        if parsed:
+            closers = parsed
+
+    max_sentences = raw.get("max_sentences_per_paragraph", default.max_sentences_per_paragraph)
+    try:
+        max_sentences = int(max_sentences)
+    except (TypeError, ValueError):
+        max_sentences = default.max_sentences_per_paragraph
+    max_sentences = max(1, min(4, max_sentences))
+
+    allow_code = bool(raw.get("allow_code_snippet", default.allow_code_snippet))
+    return EngagementConfig(
+        closers=closers,
+        allow_code_snippet=allow_code,
+        max_sentences_per_paragraph=max_sentences,
+    )
 
 
 def _parse_sources(raw: dict[str, Any] | None) -> SourceConfig:
@@ -178,4 +228,5 @@ def load_profile(niche_id: str) -> NicheProfile:
         pulse_queries=_require_list(data, "pulse_queries"),
         code_language=code_language,
         default_angle=default_angle,
+        engagement=_parse_engagement(data.get("engagement")),
     )

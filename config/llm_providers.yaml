@@ -1,23 +1,23 @@
-providers:
-  openai:
-    api_style: openai_chat
-    api_url: https://api.openai.com/v1/chat/completions
-    env_key: OPENAI_API_KEY
-    default_models:
-      - gpt-4o-mini
-      - gpt-4o
-
-  groq:
-    api_style: openai_chat
-    api_url: https://api.groq.com/openai/v1/chat/completions
-    env_key: GROQ_API_KEY
-    default_models:
-      - openai/gpt-oss-120b
-      - openai/gpt-oss-20b
-
-  anthropic:
-    api_style: anthropic_messages
-    api_url: https://api.anthropic.com/v1/messages
-    env_key: ANTHROPIC_API_KEY
-    default_models:
-      - claude-sonnet-4-20250514
+providers:
+  groq:
+    api_style: openai_chat
+    api_url: https://api.groq.com/openai/v1/chat/completions
+    env_key: GROQ_API_KEY
+    default_models:
+      - openai/gpt-oss-120b
+      - openai/gpt-oss-20b
+
+  openai:
+    api_style: openai_chat
+    api_url: https://api.openai.com/v1/chat/completions
+    env_key: OPENAI_API_KEY
+    default_models:
+      - gpt-4o-mini
+      - gpt-4o
+
+  anthropic:
+    api_style: anthropic_messages
+    api_url: https://api.anthropic.com/v1/messages
+    env_key: ANTHROPIC_API_KEY
+    default_models:
+      - claude-sonnet-4-20250514

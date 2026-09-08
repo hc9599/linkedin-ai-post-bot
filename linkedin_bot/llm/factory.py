@@ -10,7 +10,7 @@ from linkedin_bot.llm.anthropic import AnthropicClient
 from linkedin_bot.llm.openai_chat import OpenAIChatClient, groq_reasoning_effort
 from linkedin_bot.llm.types import ApiStyle, LLMProviderConfig
 
-_DEFAULT_PROVIDER = "openai"
+_DEFAULT_PROVIDER = "groq"
 
 
 def _repo_root() -> Path:

@@ -1,7 +1,8 @@
 # Daily LinkedIn Post
 #
 # Secrets (GitHub repo → Settings → Secrets):
-#   OPENAI_API_KEY (default provider), GROQ_API_KEY, ANTHROPIC_API_KEY
+#   GROQ_API_KEY (default provider)
+#   OPENAI_API_KEY, ANTHROPIC_API_KEY (optional overrides)
 #   LINKEDIN_TOKEN, LINKEDIN_PERSON_ID
 
 name: Daily LinkedIn Post
@@ -19,9 +20,9 @@ on:
         required: false
         default: ""
       llm_provider:
-        description: LLM backend (openai, groq, anthropic)
+        description: LLM backend (groq, openai, anthropic)
         required: false
-        default: openai
+        default: groq
 
 jobs:
   post:
@@ -46,21 +47,18 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Install Chromium for Playwright
-        run: playwright install chromium --with-deps
-
       - name: Run bot
         env:
           PYTHONUNBUFFERED: "1"
           PYTHONIOENCODING: "utf-8"
           PYTHONPATH: ${{ github.workspace }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           LINKEDIN_TOKEN: ${{ secrets.LINKEDIN_TOKEN }}
           LINKEDIN_PERSON_ID: ${{ secrets.LINKEDIN_PERSON_ID }}
           DRY_RUN: "false"
           NICHE: ${{ github.event.inputs.niche || 'csharp-dotnet' }}
           TOPIC: ${{ github.event.inputs.topic || '' }}
-          LLM_PROVIDER: ${{ github.event.inputs.llm_provider || 'openai' }}
-        run: python -u script.py --image
+          LLM_PROVIDER: ${{ github.event.inputs.llm_provider || 'groq' }}
+        run: python -u script.py

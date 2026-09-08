@@ -44,3 +44,14 @@ TONES = {
 }
 
 MAX_POST_WORDS = 220
+
+ENGAGEMENT_BAIT_REJECT = [
+    "agree?",
+    "let me know",
+    "share your thoughts",
+    "drop a comment",
+    "comment below",
+    "what do you think?",
+    "let me know in the comments",
+    "share below",
+]

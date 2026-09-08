@@ -110,3 +110,12 @@ weekday_angles:
     focus: Focus on what is new or coming in .NET. Filter it — what you would try, skip, or wait on. Not a changelog.
     audience_signal: A useful opinion on the roadmap. Reciting release notes is a fail.
     avoid: Do not write a changelog. Filter it — try, skip, or wait — and why.
+
+engagement:
+  allow_code_snippet: true
+  max_sentences_per_paragraph: 2
+  closers:
+    - "End with a specific A/B choice a C# dev would answer in one line — tie it to the article spark."
+    - "End asking what they'd do differently in their codebase — not 'thoughts?'."
+    - "End with an 'Anyone else still on X?' style question — X must come from the article topic."
+    - "End with a production-readiness question — would you ship this pattern without Y?"

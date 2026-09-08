@@ -11,7 +11,12 @@ from linkedin_bot.cleaning import strip_think_blocks
 from linkedin_bot.discovery import Focus
 from linkedin_bot.generation.facts import key_facts, pick_article
 from linkedin_bot.generation.reject import reject_hits
-from linkedin_bot.generation.style import MAX_POST_WORDS, OPENER_STYLES, PASS3_REJECT
+from linkedin_bot.generation.style import (
+    ENGAGEMENT_BAIT_REJECT,
+    MAX_POST_WORDS,
+    OPENER_STYLES,
+    PASS3_REJECT,
+)
 from linkedin_bot.generation.tone import classify_tone, tone_label
 from linkedin_bot.generation.variance import LoopState
 from linkedin_bot.llm import LLMClient
@@ -47,9 +52,16 @@ class PostGenerator:
         tone_key = classify_tone(article.title, facts)
         state = LoopState.load()
         opener_style = state.next_style()
+        closer_style = state.next_closer(profile.engagement.closers)
         print(f"Pass 4 — opener style: {opener_style}")
+        closer_preview = (
+            closer_style if len(closer_style) <= 80 else closer_style[:80] + "..."
+        )
+        print(f"Pass 4 — engagement closer: {closer_preview}")
 
-        draft = self._pass1(article, facts, tone_key, opener_style, profile, focus)
+        draft = self._pass1(
+            article, facts, tone_key, opener_style, closer_style, profile, focus
+        )
         draft = self._pass3(draft, profile)
 
         if state.clashes(draft):
@@ -62,6 +74,7 @@ class PostGenerator:
                 facts,
                 tone_key,
                 f"{next_style}. {avoid}",
+                closer_style,
                 profile,
                 focus,
             )
@@ -78,6 +91,7 @@ class PostGenerator:
         facts: list[str],
         tone_key: str,
         opener_style: str,
+        closer_style: str,
         profile: NicheProfile,
         focus: Focus,
     ) -> str:
@@ -91,6 +105,14 @@ class PostGenerator:
                 f"- Focus: {weekday.focus}\n"
                 f"- Audience: {weekday.audience_signal}\n"
                 f"- Avoid: {weekday.avoid}\n"
+            )
+        engagement = profile.engagement
+        code_block = ""
+        if engagement.allow_code_snippet:
+            code_block = (
+                f"\n- Optional: include 1-3 lines of {profile.code_language} code if it clarifies a tradeoff.\n"
+                "- Snippet must be illustrative only — do not invent APIs not hinted in title/facts.\n"
+                "- Put blank lines before and after any code block.\n"
             )
         hashtags_line = profile.required_hashtags_line
         user = f"""TONE: {tone_label(tone_key)}
@@ -106,6 +128,17 @@ Key facts — steal ONE concrete detail as the SPARK. Do not summarise the list:
 
 OPENER: {opener_style}
 
+ENGAGEMENT CLOSER: {closer_style}
+
+Formatting:
+- Max {engagement.max_sentences_per_paragraph} sentences per paragraph, then a blank line.
+- Write for developer peers who already know the stack — not a general audience.
+{code_block}
+Engagement rules:
+- The line immediately before the hashtags MUST be a specific developer question or A/B choice tied to the article spark.
+- Forbidden closers: thoughts?, agree?, let me know, share your thoughts, drop a comment, what do you think?
+- Do not ask 'my network'. Invite a reply a senior dev would actually type.
+
 Write a LinkedIn post as that senior engineer.
 First line exactly: TOPIC: {article.title}
 Then the post. Last line exactly: {hashtags_line}
@@ -117,7 +150,7 @@ Contract — read carefully:
 - Allowed: "this reminded me of X from years ago", "this kind of thing bit us once on a different stack", "I keep seeing this pattern", "in my experience, the bigger issue is...".
 - Forbidden when the object refers to the article's subject: "I shipped this", "I tried this and", "we migrated to this", "my team built this", "I deployed this", "we built this".
 - One concrete detail from the article (number / quote / gotcha) is the SPARK in line 1-2, then pivot to your view. Do not turn the article detail into a war story.
-- No marketing. No 'my network'. No 'thoughts?' at the end.
+- No marketing. No 'my network'.
 - If you mention a date, write it like "28 July 2026" — never ISO (2026-07-28).
 """
         result = self._llm.complete(
@@ -134,7 +167,8 @@ Contract — read carefully:
 
     def _pass3(self, draft: str, profile: NicheProfile) -> str:
         print("Pass 3 — self-critique (rewrite cliché lines only)")
-        reject = ", ".join(f'"{t}"' for t in PASS3_REJECT)
+        combined_reject = list(dict.fromkeys(PASS3_REJECT + ENGAGEMENT_BAIT_REJECT))
+        reject = ", ".join(f'"{t}"' for t in combined_reject)
         hashtags_line = profile.required_hashtags_line
         prompt = f"""Read this draft. Flag any line that sounds like marketing copy, LinkedIn-guru \
 cliché, or something no real engineer would say out loud. Rewrite only those \
@@ -144,6 +178,10 @@ Also kill any of these if they appear: {reject}
 More than 3 hashtags is too many — keep only this exact last line: {hashtags_line}
 Preserve the TOPIC: line at the top if present.
 If a date appears, use spoken form like "28 July 2026", not ISO.
+
+Engagement: the line immediately before the hashtags MUST be a SPECIFIC developer \
+question or A/B choice tied to the post topic — not generic bait like "thoughts?" \
+or "agree?". If the closer is vague, rewrite only that line.
 
 CRITICAL: flag any sentence that puts the author inside the article's story — \
 e.g. "I shipped this", "we migrated to this", "I tried this and got burned", "my \
