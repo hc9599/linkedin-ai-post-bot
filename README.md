@@ -160,3 +160,58 @@ See `profiles/csharp_dotnet.yaml` for the default C# tuning.
 Runs weekdays on cron. **Actions → Daily LinkedIn Post → Run workflow** supports optional `niche`, `topic`, and `llm_provider` inputs.
 
 Add `GROQ_API_KEY` (and optionally `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`) to repo secrets.
+
+## Post history & dedup
+
+Every successfully reviewed post is appended to `data/post_history.json` (last 30 per niche by default). Before publish, the new draft is compared against recent posts in the same niche via normalized-token Jaccard similarity.
+
+| Jaccard band | Action |
+| --- | --- |
+| `> 0.85` | Hard duplicate → re-roll with a different article |
+| `0.40 – 0.85` | Borderline → LLM semantic check ("same point?") decides |
+| `< 0.40` | Hard pass → publish |
+
+Up to 2 re-rolls per run; on the third clash the bot aborts with a clear log line and writes nothing.
+
+**Inspect history:**
+
+```powershell
+cat data/post_history.json | python -m json.tool | head -50
+```
+
+**Wipe history** (next run rebuilds):
+
+```powershell
+rm data/post_history.json
+```
+
+**Manual prune** (trim to retention without running a generation cycle):
+
+```powershell
+python script.py --prune-history --niche csharp-dotnet
+```
+
+**Override retention** (per-run, env var wins over profile YAML):
+
+```powershell
+$env:POST_HISTORY_RETENTION = "10"
+python script.py --dry-run --niche csharp-dotnet
+```
+
+**Per-profile retention** (in `profiles/<name>.yaml`):
+
+```yaml
+post_history:
+  retention: 50   # 5–365; default 30
+```
+
+History is per-niche and isolated — Python posts never compare against C# posts. A missing or corrupt `data/post_history.json` is logged and treated as empty (the bot still runs).
+
+Dedup log lines (one per attempt):
+
+```text
+History: loaded 12 records across 2 niches
+Dedup: borderline jaccard=0.62 vs 2026-09-05 post — semantic check: NEW — PASS
+Dedup: jaccard=0.91 vs 2026-09-05 post — ROLL
+Dedup: re-roll attempt 1/2 (excluding 6 article(s))
+```

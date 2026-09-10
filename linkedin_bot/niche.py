@@ -7,6 +7,7 @@ for a specific technology stack.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 from typing import Any, Literal
 
@@ -74,6 +75,38 @@ class AudienceConfig:
 
 
 @dataclass(frozen=True)
+class PostHistoryConfig:
+    """Per-niche overrides for the post-history dedup store."""
+    retention: int = 30
+
+
+_MIN_RETENTION = 5
+_MAX_RETENTION = 365
+
+
+def _env_int(name: str, default: int) -> int:
+    """Read an int env var, returning `default` on any parse error."""
+    raw = os.environ.get(name)
+    if not raw:
+        return default
+    try:
+        return int(raw.strip())
+    except (TypeError, ValueError):
+        print(f"WARNING: {name}={raw!r} is not an int — using default {default}")
+        return default
+
+
+def _clamp_retention(value: int) -> int:
+    if value < _MIN_RETENTION:
+        print(f"WARNING: post_history.retention {value} too low — clamping to {_MIN_RETENTION}")
+        return _MIN_RETENTION
+    if value > _MAX_RETENTION:
+        print(f"WARNING: post_history.retention {value} too high — clamping to {_MAX_RETENTION}")
+        return _MAX_RETENTION
+    return value
+
+
+@dataclass(frozen=True)
 class NicheProfile:
     id: str
     display_name: str
@@ -94,6 +127,9 @@ class NicheProfile:
         )
     )
     audience: AudienceConfig = field(default_factory=_default_audience_config)
+    post_history: PostHistoryConfig = field(
+        default_factory=lambda: PostHistoryConfig(retention=_env_int("POST_HISTORY_RETENTION", 30))
+    )
 
     @property
     def required_hashtags_line(self) -> str:
@@ -195,6 +231,19 @@ def _parse_audience(raw: dict[str, Any] | None) -> AudienceConfig:
         jargon_policy=jargon_policy,
         lead_with=lead_with,
     )
+
+
+def _parse_post_history(raw: dict[str, Any] | None) -> PostHistoryConfig:
+    env_default = _env_int("POST_HISTORY_RETENTION", 30)
+    if not raw or not isinstance(raw, dict):
+        return PostHistoryConfig(retention=env_default)
+    retention_raw = raw.get("retention", env_default)
+    try:
+        retention = int(retention_raw)
+    except (TypeError, ValueError):
+        print(f"WARNING: post_history.retention {retention_raw!r} is not an int — using default {env_default}")
+        retention = env_default
+    return PostHistoryConfig(retention=_clamp_retention(retention))
 
 
 def _parse_engagement(raw: dict[str, Any] | None) -> EngagementConfig:
@@ -307,4 +356,5 @@ def load_profile(niche_id: str) -> NicheProfile:
         default_angle=default_angle,
         engagement=_parse_engagement(data.get("engagement")),
         audience=_parse_audience(data.get("audience")),
+        post_history=_parse_post_history(data.get("post_history")),
     )

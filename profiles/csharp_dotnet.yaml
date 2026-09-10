@@ -129,3 +129,9 @@ engagement:
     - "End asking what they'd do differently in their codebase — not 'thoughts?'."
     - "End with an 'Anyone else still on X?' style question — X must come from the article topic."
     - "End with a production-readiness question — would you ship this pattern without Y?"
+
+# Optional post-history override.
+# Retention is the max records kept in data/post_history.json per niche.
+# Override globally with env var POST_HISTORY_RETENTION, e.g. 10 for a tight cycle.
+# post_history:
+#   retention: 30   # default; range 5–365

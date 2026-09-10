@@ -91,3 +91,7 @@ weekday_angles:
 #     - "End with one specific Python dev question tied to the article."
 #
 # Optional engagement block (used when audience.mode is peers):
+#
+# Optional post-history override (max records kept per niche):
+# post_history:
+#   retention: 30   # default; range 5–365. Override globally with POST_HISTORY_RETENTION.

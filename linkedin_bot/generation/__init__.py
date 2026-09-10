@@ -36,9 +36,14 @@ class PostGenerator:
         posts: list[CandidatePost],
         profile: NicheProfile,
         focus: Focus,
+        exclude_titles: tuple[str, ...] = (),
     ) -> str:
-        """Pass 2 → 1 → 3 → 4. Returns draft with TOPIC line still on top."""
-        article = pick_article(posts, profile, focus)
+        """Pass 2 → 1 → 3 → 4. Returns draft with TOPIC line still on top.
+
+        `exclude_titles` is forwarded to `pick_article` so the dedup gate can
+        steer the loop away from a recently-published source.
+        """
+        article = pick_article(posts, profile, focus, exclude_titles=exclude_titles)
         self._article = article
         facts = key_facts(article)
         print(f"Loop: locked article -> {article.title}")

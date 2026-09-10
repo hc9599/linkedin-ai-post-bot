@@ -8,6 +8,7 @@ Two jobs:
 Better to skip a day than publish a random off-topic take.
 """
 import re
+from typing import Literal
 
 from linkedin_bot.generation.reject import reject_hits
 from linkedin_bot.generation.style import MAX_POST_WORDS
@@ -303,3 +304,52 @@ def _gate_word_count(text: str, hashtags: list[str]) -> int:
             continue
         kept.append(stripped)
     return len(" ".join(kept).split())
+
+
+def semantic_context_check(
+    llm: LLMClient,
+    candidate_body: str,
+    matched_body: str,
+) -> Literal["DUPLICATE", "NEW", "AMBIGUOUS"]:
+    """Ask the LLM whether two posts argue the same point.
+
+    Called by the dedup gate when normalized Jaccard is borderline (0.40–0.85).
+    Uses temperature 0.0 and a tiny budget (max_tokens 20) so the per-call cost
+    is negligible. On any LLM failure we return "AMBIGUOUS" so the caller
+    treats it as a duplicate (conservative).
+    """
+    prompt = f"""You are a deduplication checker for LinkedIn posts.
+
+Do the two posts below argue the SAME POINT (same argument, same conclusion, same call to action)?
+Reply with exactly one line:
+DUPLICATE
+or
+NEW
+
+POST A (recently published):
+{candidate_body}
+
+POST B (in history):
+{matched_body}
+"""
+    try:
+        result = llm.complete(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=20,
+        )
+    except Exception as exc:  # network/decoding error — never block the bot
+        print(f"Dedup: semantic check error — {exc}")
+        return "AMBIGUOUS"
+    if not result:
+        return "AMBIGUOUS"
+    line = result.strip().splitlines()[0].strip().upper()
+    verdict: Literal["DUPLICATE", "NEW", "AMBIGUOUS"]
+    if line.startswith("DUPLICATE"):
+        verdict = "DUPLICATE"
+    elif line.startswith("NEW"):
+        verdict = "NEW"
+    else:
+        verdict = "AMBIGUOUS"
+    print(f"Dedup: semantic check returned {verdict}")
+    return verdict

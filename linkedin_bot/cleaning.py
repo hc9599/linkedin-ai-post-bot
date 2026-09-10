@@ -160,6 +160,44 @@ def strip_topic_line(text: str) -> str:
     return re.sub(r'^TOPIC:.*\n?', '', text, flags=re.IGNORECASE).strip()
 
 
+def strip_hashtag_line(text: str) -> str:
+    """
+    Removes the trailing hashtag-only line so dedup compares body content,
+    not a stable hashtag line that is identical every run.
+
+    Hashtag lines start with '#' after stripping whitespace. If the last
+    non-empty line is not a hashtag line, return text unchanged.
+    """
+    lines = text.rstrip().splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if not lines:
+        return ""
+    if lines[-1].lstrip().startswith("#"):
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def strip_source_credit(text: str) -> str:
+    """
+    Removes the `Source: ...` + URL block attached by `attach_source_credit`.
+
+    Format (from review.py):
+        Source: <title> (<site>)
+        <url>
+
+    A blank line separates the credit block from the body on either side.
+    Matching is anchored on a line starting with "Source:" (case-insensitive)
+    followed by a URL line. If no credit block is found, return text unchanged.
+    """
+    return re.sub(
+        r"\n*Source:.*\nhttps?://\S+",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    ).strip()
+
+
 def enforce_hashtags(hashtags_line: str) -> Callable[[str], str]:
     """Return a cleaner that strips old tags and appends the profile hashtag line."""
     tags = hashtags_line.split()

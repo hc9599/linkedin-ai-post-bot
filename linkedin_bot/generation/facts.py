@@ -43,20 +43,35 @@ def pick_article(
     posts: list[CandidatePost],
     profile: NicheProfile,
     focus: Focus,
+    exclude_titles: tuple[str, ...] = (),
 ) -> CandidatePost:
     """
     Lock one article before any LLM call.
 
     Prefer niche-relevant posts that match the focus topic; then reactions.
+    `exclude_titles` (case-insensitive, whitespace-collapsed) is used by the
+    dedup gate to avoid re-using a recently-published source article.
+    Raises ValueError if no candidate remains after exclusion.
     """
     if not posts:
         raise ValueError("No posts to pick from")
 
+    normalized_exclude = {
+        " ".join(t.lower().split()) for t in exclude_titles if t
+    }
+
+    def _is_excluded(post: CandidatePost) -> bool:
+        return " ".join(post.title.lower().split()) in normalized_exclude
+
     relevant = [
         p for p in posts
         if is_relevant(p.title, p.summary, profile.relevance_keywords)
+        and not _is_excluded(p)
     ]
-    pool = relevant or list(posts)
+    # If filtering left nothing, fall back to the full pool minus excluded ones
+    pool = relevant or [p for p in posts if not _is_excluded(p)]
+    if not pool:
+        raise ValueError("No posts to pick from after exclude_titles filter")
     scored = sorted(pool, key=lambda p: _score_post(p, profile, focus), reverse=True)
     best = scored[0]
 
